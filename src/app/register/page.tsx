@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-export default function LoginPage() {
+export default function RegisterPage() {
+    const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -15,18 +16,17 @@ export default function LoginPage() {
         setError('');
 
         try {
-            const res = await fetch('/api/auth/login', {
+            const res = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ name, email, password }),
             });
 
             if (res.ok) {
-                router.push('/dashboard');
-                router.refresh();
+                router.push('/login');
             } else {
                 const data = await res.json();
-                setError(data.error || 'Login failed');
+                setError(data.error || 'Registration failed');
             }
         } catch (err) {
             setError('An error occurred');
@@ -36,7 +36,7 @@ export default function LoginPage() {
     return (
         <main className="container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div className="card animate-fade-in" style={{ width: '100%', maxWidth: '400px' }}>
-                <h1 style={{ fontSize: '2rem', marginBottom: '1.5rem', textAlign: 'center' }}>Welcome Back</h1>
+                <h1 style={{ fontSize: '2rem', marginBottom: '1.5rem', textAlign: 'center' }}>Create Account</h1>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {error && (
@@ -44,6 +44,17 @@ export default function LoginPage() {
                             {error}
                         </div>
                     )}
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: '#94a3b8' }}>Name</label>
+                        <input
+                            type="text"
+                            className="input"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required
+                        />
+                    </div>
 
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: '#94a3b8' }}>Email</label>
@@ -68,14 +79,14 @@ export default function LoginPage() {
                     </div>
 
                     <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem' }}>
-                        Sign In
+                        Sign Up
                     </button>
                 </form>
 
                 <p style={{ marginTop: '1.5rem', textAlign: 'center', color: '#94a3b8' }}>
-                    Don't have an account?{' '}
-                    <Link href="/register" style={{ color: 'var(--primary)' }}>
-                        Register
+                    Already have an account?{' '}
+                    <Link href="/login" style={{ color: 'var(--primary)' }}>
+                        Login
                     </Link>
                 </p>
             </div>
