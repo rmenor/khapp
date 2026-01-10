@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 import type { Transaction, FirestoreTransaction, Resolution, FirestoreResolution } from '@/lib/types';
 import DashboardClient from '@/components/dashboard-client';
 import { Skeleton } from '@/components/ui/skeleton';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 
 interface HomePageContentProps {
@@ -42,13 +43,17 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
       setLoading(true);
       setError(null);
 
-      if (!db) {
-        setError("La conexión con la base de datos no está disponible. Asegúrate de que estás en un entorno de navegador.");
+      if (!db || !auth) {
+        setError("La conexión con la base de datos no está disponible.");
         setLoading(false);
         return;
       }
 
       try {
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
+
         const transactionsCol = collection(db, 'transactions');
         const q = query(transactionsCol, orderBy('date', 'desc'));
         const querySnapshot = await getDocs(q);
