@@ -9,18 +9,18 @@ export type TransactionStatus = 'Completado' | 'Pendiente de envío' | 'Enviado'
 
 // This is the type for client-side objects, using native Date
 export type Transaction = {
-  id: string;
-  type: TransactionType;
-  amount: number;
-  date: Date;
-  description: string;
-  category?: IncomeCategory;
-  status?: TransactionStatus;
+    id: string;
+    type: TransactionType;
+    amount: number;
+    date: Date;
+    description: string;
+    category?: IncomeCategory;
+    status?: TransactionStatus;
 };
 
 // This is the type for objects coming from Firestore, using Timestamp
 export type FirestoreTransaction = Omit<Transaction, 'id' | 'date'> & {
-    date: Timestamp; 
+    date: Timestamp;
 };
 
 export type RequestStatus = 'Pendiente' | 'Aprobado' | 'Rechazado';
@@ -40,4 +40,16 @@ export type Request = {
 export type FirestoreRequest = Omit<Request, 'id' | 'requestDate' | 'endDate'> & {
     requestDate: Timestamp;
     endDate?: Timestamp;
+};
+
+export type Resolution = {
+    id: string;
+    description: string;
+    amount: number;
+    startDate: Date;
+    isActive: boolean;
+};
+
+export type FirestoreResolution = Omit<Resolution, 'id' | 'startDate'> & {
+    startDate: Timestamp;
 };

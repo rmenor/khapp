@@ -508,3 +508,61 @@ export async function updateCongregationAction(data: z.infer<typeof Congregation
     return { success: false, message: e.message || 'Error al actualizar la congregación.' };
   }
 }
+
+const ResolutionSchema = z.object({
+  description: z.string().min(1, { message: 'La descripción es obligatoria.' }),
+  amount: z.coerce.number().positive({ message: 'La cantidad debe ser un número positivo.' }),
+  startDate: z.string().min(1, { message: 'La fecha es obligatoria.' }),
+});
+
+const DeleteResolutionSchema = z.object({
+  id: z.string().min(1, { message: 'El ID es obligatorio.' }),
+});
+
+export async function addResolutionAction(data: z.infer<typeof ResolutionSchema>) {
+  const validatedFields = ResolutionSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+
+  if (!db) {
+    return { success: false, message: 'La base de datos no está disponible.' };
+  }
+
+  try {
+    const { amount, startDate, description } = validatedFields.data;
+
+    await addDoc(collection(db, 'resolutions'), {
+      amount,
+      startDate: Timestamp.fromDate(new Date(startDate)),
+      description,
+      isActive: true,
+    });
+    revalidatePath('/finance');
+    return { success: true, message: 'Resolución añadida correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir la resolución.' };
+  }
+}
+
+export async function deleteResolutionAction(data: z.infer<typeof DeleteResolutionSchema>) {
+  const validatedFields = DeleteResolutionSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.' };
+  }
+
+  if (!db) {
+    return { success: false, message: 'La base de datos no está disponible.' };
+  }
+
+  try {
+    const { id } = validatedFields.data;
+    await deleteDoc(doc(db, 'resolutions', id));
+    revalidatePath('/finance');
+    return { success: true, message: 'Resolución eliminada correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar la resolución.' };
+  }
+}
