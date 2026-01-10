@@ -21,13 +21,13 @@ import { Printer, CircleHelp, CircleCheck, CircleX } from 'lucide-react';
 const serializeRequest = (doc: any): Request => {
     const data = doc.data() as FirestoreRequest;
     return {
-      id: doc.id,
-      ...data,
-      requestDate: (data.requestDate as unknown as Timestamp).toDate(),
-      endDate: data.endDate ? (data.endDate as unknown as Timestamp).toDate() : undefined,
-      months: data.months || [],
+        id: doc.id,
+        ...data,
+        requestDate: (data.requestDate as unknown as Timestamp).toDate(),
+        endDate: data.endDate ? (data.endDate as unknown as Timestamp).toDate() : undefined,
+        months: data.months || [],
     };
-  };
+};
 
 const monthOptions = [
     { value: 'todos', label: 'Todos los meses' },
@@ -68,7 +68,7 @@ export default function RequestsPage() {
                 if (!years.has(currentYear)) {
                     years.add(currentYear);
                 }
-                setAvailableYears(Array.from(years).sort((a,b) => b-a));
+                setAvailableYears(Array.from(years).sort((a, b) => b - a));
                 if (yearFilter === 'todos') {
                     setYearFilter(String(currentYear));
                 }
@@ -85,27 +85,39 @@ export default function RequestsPage() {
 
     const monthYearFilteredRequests = useMemo(() => {
         return requests.filter(request => {
-            const yearMatch = yearFilter === 'todos' || request.year === parseInt(yearFilter);
+            const selectedYear = yearFilter === 'todos' ? null : parseInt(yearFilter);
+            let yearMatch = true;
+
+            if (selectedYear) {
+                if (request.isContinuous) {
+                    const startDate = new Date(request.requestDate);
+                    const endYear = request.endDate ? new Date(request.endDate).getFullYear() : Infinity;
+                    yearMatch = startDate.getFullYear() <= selectedYear && endYear >= selectedYear;
+                } else {
+                    yearMatch = request.year === selectedYear;
+                }
+            }
+
             if (!yearMatch) return false;
-    
+
             if (monthFilter === 'todos') return true;
-    
+
             const selectedMonthDate = new Date(parseInt(yearFilter), monthNameToNumber[monthFilter], 1);
-            
-            if(request.isContinuous) {
+
+            if (request.isContinuous) {
                 const requestStartDate = new Date(request.requestDate);
                 requestStartDate.setHours(0, 0, 0, 0);
-    
+
                 if (request.endDate) {
                     const requestEndDate = new Date(request.endDate);
                     requestEndDate.setHours(23, 59, 59, 999);
                     return selectedMonthDate >= new Date(requestStartDate.getFullYear(), requestStartDate.getMonth(), 1) &&
-                           selectedMonthDate <= new Date(requestEndDate.getFullYear(), requestEndDate.getMonth(), 1);
+                        selectedMonthDate <= new Date(requestEndDate.getFullYear(), requestEndDate.getMonth(), 1);
                 }
-                
+
                 return selectedMonthDate >= new Date(requestStartDate.getFullYear(), requestStartDate.getMonth(), 1);
             }
-    
+
             return Array.isArray(request.months) && request.months.includes(monthFilter);
         });
     }, [requests, monthFilter, yearFilter]);
@@ -177,7 +189,7 @@ export default function RequestsPage() {
                         </SelectContent>
                     </Select>
                     <div className="flex gap-2 w-full md:w-auto">
-                         <Button variant="outline" onClick={() => window.print()} className="w-full">
+                        <Button variant="outline" onClick={() => window.print()} className="w-full">
                             <Printer className="mr-2 h-4 w-4" />
                             Imprimir
                         </Button>
@@ -214,65 +226,65 @@ export default function RequestsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{statusTotals.rejected}</div>
-                         <p className="text-xs text-muted-foreground">Solicitudes no aprobadas</p>
+                        <p className="text-xs text-muted-foreground">Solicitudes no aprobadas</p>
                     </CardContent>
                 </Card>
             </div>
 
-             <Card className="print:shadow-none print:border-none">
+            <Card className="print:shadow-none print:border-none">
                 <CardHeader>
                     <CardTitle>Lista de Solicitudes</CardTitle>
                     <CardDescription className="print:hidden">Aquí puedes ver todas las solicitudes de precursorado auxiliar.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                   {loading ? (
+                    {loading ? (
                         <div className="space-y-4">
                             <Skeleton className="h-10 w-full" />
                             <Skeleton className="h-10 w-full" />
                             <Skeleton className="h-10 w-full" />
                         </div>
-                   ) : (
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Nombre del Solicitante</TableHead>
-                                    <TableHead>Fecha de Solicitud</TableHead>
-                                    <TableHead>Año</TableHead>
-                                    <TableHead>Mes(es)</TableHead>
-                                    <TableHead>Horas</TableHead>
-                                    <TableHead>Estado</TableHead>
-                                    <TableHead className="text-right print:hidden">Acciones</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredRequests.length > 0 ? filteredRequests.map((request) => (
-                                <TableRow key={request.id}>
-                                    <TableCell className="font-medium">{request.name}</TableCell>
-                                    <TableCell>{format(new Date(request.requestDate), 'PPP', { locale: es })}</TableCell>
-                                    <TableCell>{request.year}</TableCell>
-                                    <TableCell>
-                                        {request.isContinuous 
-                                            ? `Continuo ${request.endDate ? `(finalizado ${format(request.endDate, 'PPP', { locale: es })})` : ''}` 
-                                            : request.months.join(', ')}
-                                    </TableCell>
-                                    <TableCell>{request.hours ? `${request.hours} hrs` : 'N/A'}</TableCell>
-                                    <TableCell>{getStatusBadge(request.status)}</TableCell>
-                                    <TableCell className="text-right print:hidden">
-                                        <RequestActions request={request} />
-                                    </TableCell>
-                                </TableRow>
-                                )) : (
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
-                                            No hay solicitudes que coincidan con los filtros.
-                                        </TableCell>
+                                        <TableHead>Nombre del Solicitante</TableHead>
+                                        <TableHead>Fecha de Solicitud</TableHead>
+                                        <TableHead>Año</TableHead>
+                                        <TableHead>Mes(es)</TableHead>
+                                        <TableHead>Horas</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                        <TableHead className="text-right print:hidden">Acciones</TableHead>
                                     </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                   )}
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredRequests.length > 0 ? filteredRequests.map((request) => (
+                                        <TableRow key={request.id}>
+                                            <TableCell className="font-medium">{request.name}</TableCell>
+                                            <TableCell>{format(new Date(request.requestDate), 'PPP', { locale: es })}</TableCell>
+                                            <TableCell>{request.year}</TableCell>
+                                            <TableCell>
+                                                {request.isContinuous
+                                                    ? `Continuo ${request.endDate ? `(finalizado ${format(request.endDate, 'PPP', { locale: es })})` : ''}`
+                                                    : request.months.join(', ')}
+                                            </TableCell>
+                                            <TableCell>{request.hours ? `${request.hours} hrs` : 'N/A'}</TableCell>
+                                            <TableCell>{getStatusBadge(request.status)}</TableCell>
+                                            <TableCell className="text-right print:hidden">
+                                                <RequestActions request={request} />
+                                            </TableCell>
+                                        </TableRow>
+                                    )) : (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                                                No hay solicitudes que coincidan con los filtros.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>
