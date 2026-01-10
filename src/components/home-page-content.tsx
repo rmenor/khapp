@@ -93,10 +93,9 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
           return transactionDate.getFullYear() === selectedYear && transactionDate.getMonth() + 1 === selectedMonth;
         });
 
-        let years = [...new Set(allTransactions.map(t => new Date(t.date).getFullYear()))].sort((a, b) => b - a);
-        if (years.length === 0) {
-          years.push(currentYear);
-        }
+        const yearsSet = new Set(allTransactions.map(t => new Date(t.date).getFullYear()));
+        yearsSet.add(currentYear);
+        let years = Array.from(yearsSet).sort((a, b) => b - a);
 
         const totalIncome = transactionsForSelectedPeriod
           .filter((t) => t.type === 'income')
