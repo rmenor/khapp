@@ -2,7 +2,9 @@
 import withPWA from '@ducanh2912/next-pwa';
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+    turbopack: {}
+};
 
 const pwaConfig = withPWA({
     dest: 'public',
