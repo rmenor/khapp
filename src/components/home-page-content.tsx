@@ -50,18 +50,34 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
       }
 
       try {
+        await auth.authStateReady();
+
         if (!auth.currentUser) {
-          await signInAnonymously(auth);
+          try {
+            await signInAnonymously(auth);
+          } catch (authError: any) {
+            console.error("Authentication Error:", authError);
+            if (authError.code === 'auth/operation-not-allowed' || authError.code === 'auth/admin-restricted-operation') {
+              throw new Error("La autenticación anónima no está habilitada en la consola de Firebase. Ve a Authentication -> Sign-in method y habilita 'Anonymous'.");
+            }
+            throw new Error(`Error de autenticación: ${authError.message}`);
+          }
         }
 
+        console.log("Using User UID:", auth.currentUser?.uid);
+
+        console.log("Fetching transactions...");
         const transactionsCol = collection(db, 'transactions');
         const q = query(transactionsCol, orderBy('date', 'desc'));
         const querySnapshot = await getDocs(q);
         const allTransactions = querySnapshot.docs.map(serializeTransaction);
+        console.log("Transactions fetched successfully. Count:", allTransactions.length);
 
+        console.log("Fetching resolutions...");
         const resolutionsCol = collection(db, 'resolutions');
         const resolutionsSnapshot = await getDocs(resolutionsCol);
         const resolutions = resolutionsSnapshot.docs.map(serializeResolution);
+        console.log("Resolutions fetched successfully. Count:", resolutions.length);
 
         const pendingBranchTransactions = allTransactions
           .filter(t => t.status === 'Pendiente de envío');
@@ -164,7 +180,8 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
 
       } catch (e: any) {
         console.error("Error fetching data.", e);
-        setError(e.message || 'Ocurrió un error desconocido.');
+        const uidInfo = auth?.currentUser ? `\n(User UID: ${auth.currentUser.uid})` : '\n(No authenticated user)';
+        setError((e.message || 'Ocurrió un error desconocido.') + uidInfo);
       } finally {
         setLoading(false);
       }

@@ -2,8 +2,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +58,16 @@ export default function RequestsPage() {
     useEffect(() => {
         const fetchRequests = async () => {
             try {
+                if (!auth.currentUser) {
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (authError: any) {
+                        console.error("Authentication Error:", authError);
+                        if (authError.code === 'auth/operation-not-allowed') {
+                            console.error("La autenticación anónima no está habilitada en la consola de Firebase.");
+                        }
+                    }
+                }
                 const requestsCol = collection(db, 'requests');
                 const q = query(requestsCol, orderBy('requestDate', 'desc'));
                 const querySnapshot = await getDocs(q);
