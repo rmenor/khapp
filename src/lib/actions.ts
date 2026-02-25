@@ -566,3 +566,146 @@ export async function deleteResolutionAction(data: z.infer<typeof DeleteResoluti
     return { success: false, message: e.message || 'Error al eliminar la resolución.' };
   }
 }
+
+// Annual Assignments
+
+const PioneerTalkSchema = z.object({
+  year: z.coerce.number(),
+  date: z.string().min(1),
+  speaker1: z.string().min(1),
+  speaker2: z.string().min(1),
+  openingPrayer: z.string().min(1),
+  closingPrayer: z.string().min(1),
+});
+
+const SpecialTalkSchema = z.object({
+  year: z.coerce.number(),
+  president: z.string().min(1),
+  speaker: z.string().min(1),
+  closingPrayer: z.string().min(1),
+  auxiliarySpeaker: z.string().min(1),
+  date: z.string().min(1),
+});
+
+const MemorialSchema = z.object({
+  year: z.coerce.number(),
+  president: z.string().min(1),
+  openingPrayer: z.string().min(1),
+  speaker: z.string().min(1),
+  breadPrayer: z.string().min(1),
+  winePrayer: z.string().min(1),
+  date: z.string().min(1),
+});
+
+export async function addPioneerTalkAction(data: z.infer<typeof PioneerTalkSchema>) {
+  const validatedFields = PioneerTalkSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { date, ...rest } = validatedFields.data;
+    await addDoc(collection(db, 'pioneer_talks'), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Discurso con los precursores añadido.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el discurso.' };
+  }
+}
+
+export async function addSpecialTalkAction(data: z.infer<typeof SpecialTalkSchema>) {
+  const validatedFields = SpecialTalkSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { date, ...rest } = validatedFields.data;
+    await addDoc(collection(db, 'special_talks'), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Discurso especial añadido.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el discurso.' };
+  }
+}
+
+export async function addMemorialAction(data: z.infer<typeof MemorialSchema>) {
+  const validatedFields = MemorialSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { date, ...rest } = validatedFields.data;
+    await addDoc(collection(db, 'memorials'), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Conmemoración añadida.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir la conmemoración.' };
+  }
+}
+
+export async function updatePioneerTalkAction(id: string, data: z.infer<typeof PioneerTalkSchema>) {
+  const validatedFields = PioneerTalkSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { date, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'pioneer_talks', id), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Discurso con los precursores actualizado.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el discurso.' };
+  }
+}
+
+export async function updateSpecialTalkAction(id: string, data: z.infer<typeof SpecialTalkSchema>) {
+  const validatedFields = SpecialTalkSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { date, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'special_talks', id), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Discurso especial actualizado.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el discurso.' };
+  }
+}
+
+export async function updateMemorialAction(id: string, data: z.infer<typeof MemorialSchema>) {
+  const validatedFields = MemorialSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { date, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'memorials', id), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Conmemoración actualizada.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar la conmemoración.' };
+  }
+}
+
+export async function deleteAnnualAssignmentAction(id: string, type: 'pioneer_talks' | 'special_talks' | 'memorials') {
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await deleteDoc(doc(db, type, id));
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Registro eliminado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar el registro.' };
+  }
+}

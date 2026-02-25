@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, Landmark, ClipboardList, Settings, LogOut } from 'lucide-react';
+import { Home, Landmark, ClipboardList, Settings, LogOut, CalendarDays } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -26,12 +26,17 @@ const navLinks = [
     icon: ClipboardList,
     label: 'Solicitudes',
   },
+  {
+    href: '/annual-assignments',
+    icon: CalendarDays,
+    label: 'Anuales',
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  
+
   const handleLogout = () => {
     localStorage.removeItem('isAuthenticated');
     router.push('/login');
@@ -48,24 +53,24 @@ export function Sidebar() {
           <span className="sr-only">KH App</span>
         </Link>
         <TooltipProvider>
-            {navLinks.map((link) => (
+          {navLinks.map((link) => (
             <Tooltip key={link.href}>
-                <TooltipTrigger asChild>
+              <TooltipTrigger asChild>
                 <Link
-                    href={link.href}
-                    className={cn(
+                  href={link.href}
+                  className={cn(
                     buttonVariants({ variant: pathname.startsWith(link.href) ? 'default' : 'ghost', size: 'icon' }),
                     'rounded-lg',
                     !pathname.startsWith(link.href) && 'text-muted-foreground'
-                    )}
+                  )}
                 >
-                    <link.icon className="h-5 w-5" />
-                    <span className="sr-only">{link.label}</span>
+                  <link.icon className="h-5 w-5" />
+                  <span className="sr-only">{link.label}</span>
                 </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">{link.label}</TooltipContent>
+              </TooltipTrigger>
+              <TooltipContent side="right">{link.label}</TooltipContent>
             </Tooltip>
-            ))}
+          ))}
         </TooltipProvider>
       </nav>
       <nav className="mt-auto flex flex-col items-center gap-4 px-2 sm:py-4">
@@ -75,9 +80,9 @@ export function Sidebar() {
               <Link
                 href="/settings"
                 className={cn(
-                    buttonVariants({ variant: pathname.startsWith('/settings') ? 'default' : 'ghost', size: 'icon' }),
-                     'rounded-lg',
-                    !pathname.startsWith('/settings') && 'text-muted-foreground'
+                  buttonVariants({ variant: pathname.startsWith('/settings') ? 'default' : 'ghost', size: 'icon' }),
+                  'rounded-lg',
+                  !pathname.startsWith('/settings') && 'text-muted-foreground'
                 )}
               >
                 <Settings className="h-5 w-5" />
@@ -88,10 +93,10 @@ export function Sidebar() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-lg text-muted-foreground" onClick={handleLogout}>
-                    <LogOut className="h-5 w-5" />
-                    <span className="sr-only">Cerrar Sesión</span>
-                </Button>
+              <Button variant="ghost" size="icon" className="rounded-lg text-muted-foreground" onClick={handleLogout}>
+                <LogOut className="h-5 w-5" />
+                <span className="sr-only">Cerrar Sesión</span>
+              </Button>
             </TooltipTrigger>
             <TooltipContent side="right">Cerrar Sesión</TooltipContent>
           </Tooltip>
