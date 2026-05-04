@@ -423,6 +423,9 @@ export async function updateRequestStatusAction(data: z.infer<typeof UpdateReque
 }
 
 export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSchema>) {
+  console.log('=== DELETE REQUEST ACTION CALLED ===');
+  console.log('Received data:', data);
+  
   const validatedFields = DeleteRequestSchema.safeParse(data);
 
   if (!validatedFields.success) {
@@ -447,7 +450,6 @@ export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSche
     const docRef = doc(db, 'requests', id);
 
     // Delete directly - Firestore handles offline persistence automatically
-    // No need to check if document exists first (that requires online connection)
     await deleteDoc(docRef);
     console.log('Successfully deleted request:', id);
     

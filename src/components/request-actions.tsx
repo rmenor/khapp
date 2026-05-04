@@ -15,16 +15,6 @@ import { CheckCircle, MoreHorizontal, XCircle, Trash2, Loader2, PauseCircle } fr
 import { useToast } from '@/hooks/use-toast';
 import { updateRequestStatusAction, deleteRequestAction, paralyzeRequestAction } from '@/lib/actions';
 import { type Request, type RequestStatus } from '@/lib/types';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-  } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -72,27 +62,24 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
   };
 
    const handleDelete = async () => {
-    setIsDeleting(true);
-    
-    if (!request.id) {
+    if (!request?.id) {
       toast({
         variant: 'destructive',
         title: 'Error',
         description: 'ID de solicitud no válido.',
       });
-      setIsDeleting(false);
       return;
     }
 
+    setIsDeleting(true);
+    
     try {
       const result = await deleteRequestAction({ id: request.id });
       
       if (result.success) {
-        // Actualizar estado local inmediatamente para UI responsive
         if (onActionComplete) {
           onActionComplete(request.id);
         }
-        setIsDeleting(false);
         setDeleteDialogOpen(false);
       } else {
         toast({
@@ -100,8 +87,6 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
           title: 'Error al eliminar',
           description: result.message || 'No se pudo eliminar la solicitud.',
         });
-        setIsDeleting(false);
-        setDeleteDialogOpen(false);
       }
     } catch (error: any) {
       toast({
@@ -109,8 +94,8 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
         title: 'Error inesperado',
         description: error.message || 'Ocurrió un error inesperado.',
       });
+    } finally {
       setIsDeleting(false);
-      setDeleteDialogOpen(false);
     }
   }
 
@@ -144,12 +129,12 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
   return (
     <>
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownmenuTrigger asChild>
         <Button variant="ghost" size="icon" disabled={isUpdating || isDeleting}>
           <MoreHorizontal className="h-4 w-4" />
           <span className="sr-only">Acciones</span>
         </Button>
-      </DropdownMenuTrigger>
+      </DropdownmenuTrigger>
       <DropdownMenuContent align="end">
         {request.status === 'Pendiente' && (
             <>
@@ -183,63 +168,76 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
     </DropdownMenu>
 
     {/* Status Change Dialog */}
-    <AlertDialog open={statusChangeDialogOpen} onOpenChange={setStatusChangeDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-            <AlertDialogDescription>
-                Esta acción cambiará el estado de la solicitud a &quot;{actionToConfirm}&quot;.
-                Esta acción no se puede deshacer fácilmente.
-            </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-            <AlertDialogCancel disabled={isUpdating}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleStatusChange} disabled={isUpdating}>
-                {isUpdating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Actualizando...</> : `Sí, marcar como ${actionToConfirm}`}
-            </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+    {statusChangeDialogOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50" onClick={() => setStatusChangeDialogOpen(false)} />
+        <div className="relative bg-background p-6 rounded-lg shadow-lg max-w-md w-full">
+          <h2 className="text-lg font-semibold mb-2">¿Estás seguro?</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Esta acción cambiará el estado de la solicitud a &quot;{actionToConfirm}&quot;.
+            Esta acción no se puede deshacer fácilmente.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setStatusChangeDialogOpen(false)} disabled={isUpdating}>
+              Cancelar
+            </Button>
+            <Button onClick={handleStatusChange} disabled={isUpdating}>
+              {isUpdating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Actualizando...</> : `Sí, marcar como ${actionToConfirm}`}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
     
     {/* Delete Confirmation Dialog */}
-    <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro de que quieres eliminar?</AlertDialogTitle>
-            <AlertDialogDescription>
-               Esta acción es permanente y no se puede deshacer. La solicitud se eliminará definitivamente.
-            </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
-            <Button 
-                onClick={() => handleDelete()}
-                disabled={isDeleting} 
-                className="bg-destructive hover:bg-destructive/90"
-            >
-                 {isDeleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Eliminando...</> : 'Sí, eliminar'}
+    {deleteDialogOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50" onClick={() => setDeleteDialogOpen(false)} />
+        <div className="relative bg-background p-6 rounded-lg shadow-lg max-w-md w-full">
+          <h2 className="text-lg font-semibold mb-2">¿Estás seguro de que quieres eliminar?</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Esta acción es permanente y no se puede deshacer. La solicitud se eliminará definitivamente.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
+              Cancelar
             </Button>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+            <Button 
+              type="button"
+              onClick={() => {
+                console.log('Delete button clicked - calling handleDelete');
+                handleDelete();
+              }}
+              disabled={isDeleting} 
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Eliminando...</> : 'Sí, eliminar'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
 
      {/* Paralyze Confirmation Dialog */}
-     <AlertDialog open={paralyzeDialogOpen} onOpenChange={setParalyzeDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-            <AlertDialogTitle>¿Paralizar servicio continuo?</AlertDialogTitle>
-            <AlertDialogDescription>
-                Esta acción marcará el fin del servicio continuo para este precursor a partir de hoy. Ya no aparecerá en los meses futuros. ¿Deseas continuar?
-            </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-            <AlertDialogCancel disabled={isParalyzing}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleParalyze} disabled={isParalyzing}>
-                {isParalyzing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Paralizando...</> : 'Sí, paralizar'}
-            </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+     {paralyzeDialogOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50" onClick={() => setParalyzeDialogOpen(false)} />
+        <div className="relative bg-background p-6 rounded-lg shadow-lg max-w-md w-full">
+          <h2 className="text-lg font-semibold mb-2">¿Paralizar servicio continuo?</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Esta acción marcará el fin del servicio continuo para este precursor a partir de hoy. Ya no aparecerá en los meses futuros. ¿Deseas continuar?
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setParalyzeDialogOpen(false)} disabled={isParalyzing}>
+              Cancelar
+            </Button>
+            <Button onClick={handleParalyze} disabled={isParalyzing}>
+              {isParalyzing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Paralizando...</> : 'Sí, paralizar'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
 
     </>
   );
