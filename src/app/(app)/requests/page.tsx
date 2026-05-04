@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { RequestActions } from '@/components/request-actions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Printer, CircleHelp, CircleCheck, CircleX } from 'lucide-react';
 
 const serializeRequest = (doc: any): Request => {
@@ -149,6 +150,48 @@ export default function RequestsPage() {
         }, { pending: 0, approved: 0, rejected: 0 });
     }, [monthYearFilteredRequests]);
 
+    // Solicitudes continuo activas este mes
+    const continuousRequests = useMemo(() => {
+        const currentMonth = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+        const selectedYear = yearFilter === 'todos' ? currentYear : parseInt(yearFilter);
+        const selectedMonth = monthFilter === 'todos' ? currentMonth : monthNameToNumber[monthFilter];
+
+        return filteredRequests.filter(request => {
+            if (!request.isContinuous || request.status !== 'Aprobado') return false;
+            const startDate = new Date(request.requestDate);
+            const startYear = startDate.getFullYear();
+            const startMonth = startDate.getMonth();
+
+            // Si hay fecha de fin, verificar que el mes seleccionado esté dentro del período
+            if (request.endDate) {
+                const endDate = new Date(request.endDate);
+                const endYear = endDate.getFullYear();
+                const endMonth = endDate.getMonth();
+                const selectedMonthStart = new Date(selectedYear, selectedMonth, 1);
+                const selectedMonthEnd = new Date(selectedYear, selectedMonth + 1, 0);
+                const startMonthStart = new Date(startYear, startMonth, 1);
+                const endMonthEnd = new Date(endYear, endMonth + 1, 0);
+                return selectedMonthStart <= endMonthEnd && selectedMonthEnd >= startMonthStart;
+            }
+            // Sin fecha de fin: verificar que el mes seleccionado >= inicio
+            return selectedYear > startYear || (selectedYear === startYear && selectedMonth >= startMonth);
+        });
+    }, [filteredRequests, monthFilter, yearFilter]);
+
+    // Solicitudes mensuales aprobadas para el mes seleccionado
+    const monthlyRequests = useMemo(() => {
+        const selectedYear = yearFilter === 'todos' ? new Date().getFullYear() : parseInt(yearFilter);
+        const selectedMonth = monthFilter === 'todos' ? null : monthNameToNumber[monthFilter];
+
+        return filteredRequests.filter(request => {
+            if (request.isContinuous || request.status !== 'Aprobado') return false;
+            if (!selectedMonth && monthFilter !== 'todos') return true;
+            if (monthFilter === 'todos') return true;
+            return request.months.includes(monthFilter);
+        });
+    }, [filteredRequests, monthFilter, yearFilter]);
+
     const getStatusBadge = (status: string) => {
         const statusClasses: Record<string, string> = {
             'Pendiente': 'text-orange-600 border-orange-200',
@@ -242,62 +285,179 @@ export default function RequestsPage() {
                 </Card>
             </div>
 
-            <Card className="print:shadow-none print:border-none">
-                <CardHeader>
-                    <CardTitle>Lista de Solicitudes</CardTitle>
-                    <CardDescription className="print:hidden">Aquí puedes ver todas las solicitudes de precursorado auxiliar.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="space-y-4">
-                            <Skeleton className="h-10 w-full" />
-                            <Skeleton className="h-10 w-full" />
-                            <Skeleton className="h-10 w-full" />
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Nombre del Solicitante</TableHead>
-                                        <TableHead>Fecha de Solicitud</TableHead>
-                                        <TableHead>Año</TableHead>
-                                        <TableHead>Mes(es)</TableHead>
-                                        <TableHead>Horas</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                        <TableHead className="text-right print:hidden">Acciones</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredRequests.length > 0 ? filteredRequests.map((request) => (
-                                        <TableRow key={request.id}>
-                                            <TableCell className="font-medium">{request.name}</TableCell>
-                                            <TableCell>{format(new Date(request.requestDate), 'PPP', { locale: es })}</TableCell>
-                                            <TableCell>{request.year}</TableCell>
-                                            <TableCell>
-                                                {request.isContinuous
-                                                    ? `Continuo ${request.endDate ? `(finalizado ${format(request.endDate, 'PPP', { locale: es })})` : ''}`
-                                                    : request.months.join(', ')}
-                                            </TableCell>
-                                            <TableCell>{request.hours ? `${request.hours} hrs` : 'N/A'}</TableCell>
-                                            <TableCell>{getStatusBadge(request.status)}</TableCell>
-                                            <TableCell className="text-right print:hidden">
-                                                <RequestActions request={request} />
-                                            </TableCell>
-                                        </TableRow>
-                                    )) : (
+            <Tabs defaultValue="continuous" className="w-full">
+                <TabsList className="grid w-full md:w-[400px] grid-cols-2">
+                    <TabsTrigger value="continuous">
+                        Servicio Continuo ({continuousRequests.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="monthly">
+                        Solicitudes Mensuales ({monthlyRequests.length})
+                    </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="continuous" className="mt-4">
+                    <Card className="print:shadow-none print:border-none">
+                        <CardHeader>
+                            <CardTitle>Servicio Continuo Activo</CardTitle>
+                            <CardDescription>
+                                Precursores que están en servicio continuo este mes ({new Date().toLocaleString('default', { month: 'long' })})
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {loading ? (
+                                <div className="space-y-4">
+                                    <Skeleton className="h-10 w-full" />
+                                    <Skeleton className="h-10 w-full" />
+                                </div>
+                            ) : continuousRequests.length > 0 ? (
+                                <Table>
+                                    <TableHeader>
                                         <TableRow>
-                                            <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
-                                                No hay solicitudes que coincidan con los filtros.
-                                            </TableCell>
+                                            <TableHead>Nombre</TableHead>
+                                            <TableHead>Inicio</TableHead>
+                                            <TableHead>Estado</TableHead>
+                                            <TableHead className="text-right print:hidden">Acciones</TableHead>
                                         </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {continuousRequests.map(request => (
+                                            <TableRow key={request.id}>
+                                                <TableCell className="font-medium">{request.name}</TableCell>
+                                                <TableCell>
+                                                    {format(new Date(request.requestDate), 'PPP', { locale: es })}
+                                                    {request.endDate && (
+                                                        <span className="text-muted-foreground ml-2">
+                                                            - {format(request.endDate, 'PPP', { locale: es })}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>{getStatusBadge(request.status)}</TableCell>
+                                                <TableCell className="text-right print:hidden">
+                                                    <RequestActions request={request} />
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            ) : (
+                                <p className="text-muted-foreground text-center py-10">
+                                    No hay precursores en servicio continuo para el período seleccionado.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="monthly" className="mt-4">
+                    <Card className="print:shadow-none print:border-none">
+                        <CardHeader>
+                            <CardTitle>Solicitudes Mensuales</CardTitle>
+                            <CardDescription>
+                                Precursores que han solicitado meses específicos ({monthFilter !== 'todos' ? monthFilter : 'todos los meses'})
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {loading ? (
+                                <div className="space-y-4">
+                                    <Skeleton className="h-10 w-full" />
+                                    <Skeleton className="h-10 w-full" />
+                                </div>
+                            ) : monthlyRequests.length > 0 ? (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Nombre</TableHead>
+                                            <TableHead>Fecha de Solicitud</TableHead>
+                                            <TableHead>Año</TableHead>
+                                            <TableHead>Meses</TableHead>
+                                            <TableHead>Horas</TableHead>
+                                            <TableHead>Estado</TableHead>
+                                            <TableHead className="text-right print:hidden">Acciones</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {monthlyRequests.map(request => (
+                                            <TableRow key={request.id}>
+                                                <TableCell className="font-medium">{request.name}</TableCell>
+                                                <TableCell>{format(new Date(request.requestDate), 'PPP', { locale: es })}</TableCell>
+                                                <TableCell>{request.year}</TableCell>
+                                                <TableCell>{request.months.join(', ')}</TableCell>
+                                                <TableCell>{request.hours ? `${request.hours} hrs` : 'N/A'}</TableCell>
+                                                <TableCell>{getStatusBadge(request.status)}</TableCell>
+                                                <TableCell className="text-right print:hidden">
+                                                    <RequestActions request={request} />
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            ) : (
+                                <p className="text-muted-foreground text-center py-10">
+                                    No hay solicitudes mensuales para el período seleccionado.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="all" className="mt-4">
+                    <Card className="print:shadow-none print:border-none">
+                        <CardHeader>
+                            <CardTitle>Todas las Solicitudes</CardTitle>
+                            <CardDescription>Lista completa de solicitudes de precursorado.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {loading ? (
+                                <div className="space-y-4">
+                                    <Skeleton className="h-10 w-full" />
+                                    <Skeleton className="h-10 w-full" />
+                                </div>
+                            ) : filteredRequests.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Nombre del Solicitante</TableHead>
+                                                <TableHead>Fecha de Solicitud</TableHead>
+                                                <TableHead>Año</TableHead>
+                                                <TableHead>Mes(es)</TableHead>
+                                                <TableHead>Horas</TableHead>
+                                                <TableHead>Estado</TableHead>
+                                                <TableHead className="text-right print:hidden">Acciones</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredRequests.map((request) => (
+                                                <TableRow key={request.id}>
+                                                    <TableCell className="font-medium">{request.name}</TableCell>
+                                                    <TableCell>{format(new Date(request.requestDate), 'PPP', { locale: es })}</TableCell>
+                                                    <TableCell>{request.year}</TableCell>
+                                                    <TableCell>
+                                                        {request.isContinuous
+                                                            ? `Continuo ${request.endDate ? `(finalizado ${format(request.endDate, 'PPP', { locale: es })})` : ''}`
+                                                            : request.months.join(', ')}
+                                                    </TableCell>
+                                                    <TableCell>{request.hours ? `${request.hours} hrs` : 'N/A'}</TableCell>
+                                                    <TableCell>{getStatusBadge(request.status)}</TableCell>
+                                                    <TableCell className="text-right print:hidden">
+                                                        <RequestActions request={request} />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                                        No hay solicitudes que coincidan con los filtros.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
