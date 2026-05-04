@@ -445,14 +445,9 @@ export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSche
 
     console.log('Attempting to delete request with ID:', id);
     const docRef = doc(db, 'requests', id);
-    
-    // Verify the document exists before deleting
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) {
-      console.warn('Document does not exist:', id);
-      return { success: false, message: 'La solicitud no existe o ya fue eliminada.' };
-    }
 
+    // Delete directly - Firestore handles offline persistence automatically
+    // No need to check if document exists first (that requires online connection)
     await deleteDoc(docRef);
     console.log('Successfully deleted request:', id);
     
