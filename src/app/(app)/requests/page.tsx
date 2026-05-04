@@ -55,45 +55,50 @@ export default function RequestsPage() {
     const [yearFilter, setYearFilter] = useState<string>('todos');
     const [statusFilter, setStatusFilter] = useState('todos');
     const [availableYears, setAvailableYears] = useState<number[]>([]);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    useEffect(() => {
-        const fetchRequests = async () => {
-            try {
-                if (!auth.currentUser) {
-                    try {
-                        await signInAnonymously(auth);
-                    } catch (authError: any) {
-                        console.error("Authentication Error:", authError);
-                        if (authError.code === 'auth/operation-not-allowed') {
-                            console.error("La autenticación anónima no está habilitada en la consola de Firebase.");
-                        }
+    const fetchRequests = async () => {
+        try {
+            if (!auth.currentUser) {
+                try {
+                    await signInAnonymously(auth);
+                } catch (authError: any) {
+                    console.error("Authentication Error:", authError);
+                    if (authError.code === 'auth/operation-not-allowed') {
+                        console.error("La autenticación anónima no está habilitada en la consola de Firebase.");
                     }
                 }
-                const requestsCol = collection(db, 'requests');
-                const q = query(requestsCol, orderBy('requestDate', 'desc'));
-                const querySnapshot = await getDocs(q);
-                const fetchedRequests = querySnapshot.docs.map(serializeRequest);
-                setRequests(fetchedRequests);
-
-                const years = new Set(fetchedRequests.map(r => r.year));
-                const currentYear = new Date().getFullYear();
-                if (!years.has(currentYear)) {
-                    years.add(currentYear);
-                }
-                setAvailableYears(Array.from(years).sort((a, b) => b - a));
-                if (yearFilter === 'todos') {
-                    setYearFilter(String(currentYear));
-                }
-
-            } catch (error) {
-                console.error("Error fetching requests:", error);
-            } finally {
-                setLoading(false);
             }
-        };
+            const requestsCol = collection(db, 'requests');
+            const q = query(requestsCol, orderBy('requestDate', 'desc'));
+            const querySnapshot = await getDocs(q);
+            const fetchedRequests = querySnapshot.docs.map(serializeRequest);
+            setRequests(fetchedRequests);
 
+            const years = new Set(fetchedRequests.map(r => r.year));
+            const currentYear = new Date().getFullYear();
+            if (!years.has(currentYear)) {
+                years.add(currentYear);
+            }
+            setAvailableYears(Array.from(years).sort((a, b) => b - a));
+            if (yearFilter === 'todos') {
+                setYearFilter(String(currentYear));
+            }
+
+        } catch (error) {
+            console.error("Error fetching requests:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchRequests();
-    }, []);
+    }, [refreshKey]);
+
+    const handleActionComplete = () => {
+        setRefreshKey(prev => prev + 1);
+    };
 
     const monthYearFilteredRequests = useMemo(() => {
         return requests.filter(request => {
@@ -333,7 +338,7 @@ export default function RequestsPage() {
                                                 </TableCell>
                                                 <TableCell>{getStatusBadge(request.status)}</TableCell>
                                                 <TableCell className="text-right print:hidden">
-                                                    <RequestActions request={request} />
+                                                    <RequestActions request={request} onActionComplete={handleActionComplete} />
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -385,7 +390,7 @@ export default function RequestsPage() {
                                                 <TableCell>{request.hours ? `${request.hours} hrs` : 'N/A'}</TableCell>
                                                 <TableCell>{getStatusBadge(request.status)}</TableCell>
                                                 <TableCell className="text-right print:hidden">
-                                                    <RequestActions request={request} />
+                                                    <RequestActions request={request} onActionComplete={handleActionComplete} />
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -440,7 +445,7 @@ export default function RequestsPage() {
                                                     <TableCell>{request.hours ? `${request.hours} hrs` : 'N/A'}</TableCell>
                                                     <TableCell>{getStatusBadge(request.status)}</TableCell>
                                                     <TableCell className="text-right print:hidden">
-                                                        <RequestActions request={request} />
+                                                        <RequestActions request={request} onActionComplete={handleActionComplete} />
                                                     </TableCell>
                                                 </TableRow>
                                             ))}

@@ -426,19 +426,40 @@ export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSche
   const validatedFields = DeleteRequestSchema.safeParse(data);
 
   if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.' };
+    console.error('Validation error in deleteRequestAction:', validatedFields.error.flatten());
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
   }
 
   if (!db) {
+    console.error('Database not available in deleteRequestAction');
     return { success: false, message: 'La base de datos no está disponible.' };
   }
 
   try {
     const { id } = validatedFields.data;
-    await deleteDoc(doc(db, 'requests', id));
+    
+    if (!id) {
+      console.error('No ID provided to deleteRequestAction');
+      return { success: false, message: 'ID de solicitud no proporcionado.' };
+    }
+
+    console.log('Attempting to delete request with ID:', id);
+    const docRef = doc(db, 'requests', id);
+    
+    // Verify the document exists before deleting
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) {
+      console.warn('Document does not exist:', id);
+      return { success: false, message: 'La solicitud no existe o ya fue eliminada.' };
+    }
+
+    await deleteDoc(docRef);
+    console.log('Successfully deleted request:', id);
+    
     revalidatePath('/requests');
     return { success: true, message: 'Solicitud eliminada correctamente.' };
   } catch (e: any) {
+    console.error('Error in deleteRequestAction:', e);
     const message = e instanceof Error ? e.message : 'Ocurrió un error desconocido.';
     return { success: false, message: `Error al eliminar la solicitud: ${message}` };
   }

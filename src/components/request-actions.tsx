@@ -30,9 +30,10 @@ import { es } from 'date-fns/locale';
 
 interface RequestActionsProps {
   request: Request;
+  onActionComplete?: () => void;
 }
 
-export function RequestActions({ request }: RequestActionsProps) {
+export function RequestActions({ request, onActionComplete }: RequestActionsProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isParalyzing, setIsParalyzing] = useState(false);
@@ -53,13 +54,14 @@ export function RequestActions({ request }: RequestActionsProps) {
     setIsUpdating(false);
     setStatusChangeDialogOpen(false);
 
-
     if (result.success) {
       toast({
         title: 'Éxito',
         description: result.message,
       });
-       window.location.reload();
+      if (onActionComplete) {
+        onActionComplete();
+      }
     } else {
       toast({
         variant: 'destructive',
@@ -69,24 +71,48 @@ export function RequestActions({ request }: RequestActionsProps) {
     }
   };
 
-  const handleDelete = async () => {
+   const handleDelete = async () => {
     setIsDeleting(true);
-    const result = await deleteRequestAction({ id: request.id });
-    setIsDeleting(false);
-    setDeleteDialogOpen(false);
     
-    if (result.success) {
-      toast({
-        title: 'Éxito',
-        description: result.message,
-      });
-      window.location.reload();
-    } else {
+    if (!request.id) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: result.message || 'No se pudo eliminar la solicitud.',
+        description: 'ID de solicitud no válido.',
       });
+      setIsDeleting(false);
+      return;
+    }
+
+    try {
+      const result = await deleteRequestAction({ id: request.id });
+      
+      if (result.success) {
+        toast({
+          title: 'Éxito',
+          description: result.message || 'Solicitud eliminada correctamente.',
+        });
+        // Usar el callback para recargar los datos en lugar de window.location.reload()
+        if (onActionComplete) {
+          onActionComplete();
+        }
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: result.message || 'No se pudo eliminar la solicitud.',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error al eliminar solicitud:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Ocurrió un error inesperado.',
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
     }
   }
 
@@ -98,7 +124,9 @@ export function RequestActions({ request }: RequestActionsProps) {
 
     if (result.success) {
         toast({ title: 'Éxito', description: result.message });
-        window.location.reload();
+        if (onActionComplete) {
+          onActionComplete();
+        }
     } else {
         toast({
             variant: 'destructive',
