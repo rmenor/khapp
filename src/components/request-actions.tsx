@@ -30,7 +30,7 @@ import { es } from 'date-fns/locale';
 
 interface RequestActionsProps {
   request: Request;
-  onActionComplete?: () => void;
+  onActionComplete?: (deletedId?: string) => void;
 }
 
 export function RequestActions({ request, onActionComplete }: RequestActionsProps) {
@@ -88,29 +88,27 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
       const result = await deleteRequestAction({ id: request.id });
       
       if (result.success) {
-        toast({
-          title: 'Éxito',
-          description: result.message || 'Solicitud eliminada correctamente.',
-        });
-        // Usar el callback para recargar los datos en lugar de window.location.reload()
+        // Actualizar estado local inmediatamente para UI responsive
         if (onActionComplete) {
-          onActionComplete();
+          onActionComplete(request.id);
         }
+        setIsDeleting(false);
+        setDeleteDialogOpen(false);
       } else {
         toast({
           variant: 'destructive',
-          title: 'Error',
+          title: 'Error al eliminar',
           description: result.message || 'No se pudo eliminar la solicitud.',
         });
+        setIsDeleting(false);
+        setDeleteDialogOpen(false);
       }
     } catch (error: any) {
-      console.error('Error al eliminar solicitud:', error);
       toast({
         variant: 'destructive',
-        title: 'Error',
+        title: 'Error inesperado',
         description: error.message || 'Ocurrió un error inesperado.',
       });
-    } finally {
       setIsDeleting(false);
       setDeleteDialogOpen(false);
     }
@@ -214,9 +212,13 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
             </AlertDialogHeader>
             <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                 {isDeleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Eliminando...</> : `Sí, eliminar`}
-            </AlertDialogAction>
+            <Button 
+                onClick={() => handleDelete()}
+                disabled={isDeleting} 
+                className="bg-destructive hover:bg-destructive/90"
+            >
+                 {isDeleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Eliminando...</> : 'Sí, eliminar'}
+            </Button>
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>

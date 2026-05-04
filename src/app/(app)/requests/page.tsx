@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Printer, CircleHelp, CircleCheck, CircleX } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const serializeRequest = (doc: any): Request => {
     const data = doc.data() as FirestoreRequest;
@@ -56,6 +57,7 @@ export default function RequestsPage() {
     const [statusFilter, setStatusFilter] = useState('todos');
     const [availableYears, setAvailableYears] = useState<number[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
+    const { toast } = useToast();
 
     const fetchRequests = async () => {
         try {
@@ -96,8 +98,18 @@ export default function RequestsPage() {
         fetchRequests();
     }, [refreshKey]);
 
-    const handleActionComplete = () => {
-        setRefreshKey(prev => prev + 1);
+    const handleActionComplete = (deletedId?: string) => {
+        if (deletedId) {
+            // Remove the deleted request from local state immediately
+            setRequests(prev => prev.filter(r => r.id !== deletedId));
+            toast({
+                title: 'Éxito',
+                description: 'Solicitud eliminada correctamente.',
+            });
+        } else {
+            // Fallback: refresh all data
+            setRefreshKey(prev => prev + 1);
+        }
     };
 
     const monthYearFilteredRequests = useMemo(() => {
