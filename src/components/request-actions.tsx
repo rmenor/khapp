@@ -129,12 +129,12 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
   return (
     <>
     <DropdownMenu>
-      <DropdownmenuTrigger asChild>
+      <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" disabled={isUpdating || isDeleting}>
           <MoreHorizontal className="h-4 w-4" />
           <span className="sr-only">Acciones</span>
         </Button>
-      </DropdownmenuTrigger>
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {request.status === 'Pendiente' && (
             <>
