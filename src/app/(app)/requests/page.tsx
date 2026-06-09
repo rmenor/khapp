@@ -209,13 +209,16 @@ export default function RequestsPage() {
         });
     }, [filteredRequests, monthFilter, yearFilter]);
 
-    const getStatusBadge = (status: string) => {
+    const getStatusBadge = (request: Request) => {
+        if (request.endDate) {
+            return <Badge variant="outline" className="text-orange-600 border-orange-200">Paralizado</Badge>;
+        }
         const statusClasses: Record<string, string> = {
             'Pendiente': 'text-orange-600 border-orange-200',
             'Aprobado': 'text-green-600 border-green-200',
             'Rechazado': 'text-red-600 border-red-200',
         };
-        return <Badge variant="outline" className={cn(statusClasses[status] || 'text-gray-600 border-gray-200')}>{status}</Badge>;
+        return <Badge variant="outline" className={cn(statusClasses[request.status] || 'text-gray-600 border-gray-200')}>{request.status}</Badge>;
     }
 
     return (
@@ -348,7 +351,7 @@ export default function RequestsPage() {
                                                         </span>
                                                     )}
                                                 </TableCell>
-                                                <TableCell>{getStatusBadge(request.status)}</TableCell>
+                                                <TableCell>{getStatusBadge(request)}</TableCell>
                                                 <TableCell className="text-right print:hidden">
                                                     <RequestActions request={request} onActionComplete={handleActionComplete} />
                                                 </TableCell>
@@ -400,7 +403,7 @@ export default function RequestsPage() {
                                                 <TableCell>{request.year}</TableCell>
                                                 <TableCell>{request.months.join(', ')}</TableCell>
                                                 <TableCell>{request.hours ? `${request.hours} hrs` : 'N/A'}</TableCell>
-                                                <TableCell>{getStatusBadge(request.status)}</TableCell>
+                                                <TableCell>{getStatusBadge(request)}</TableCell>
                                                 <TableCell className="text-right print:hidden">
                                                     <RequestActions request={request} onActionComplete={handleActionComplete} />
                                                 </TableCell>
@@ -455,7 +458,7 @@ export default function RequestsPage() {
                                                             : request.months.join(', ')}
                                                     </TableCell>
                                                     <TableCell>{request.hours ? `${request.hours} hrs` : 'N/A'}</TableCell>
-                                                    <TableCell>{getStatusBadge(request.status)}</TableCell>
+                                                    <TableCell>{getStatusBadge(request)}</TableCell>
                                                     <TableCell className="text-right print:hidden">
                                                         <RequestActions request={request} onActionComplete={handleActionComplete} />
                                                     </TableCell>

@@ -425,7 +425,7 @@ export async function updateRequestStatusAction(data: z.infer<typeof UpdateReque
 export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSchema>) {
   console.log('=== DELETE REQUEST ACTION CALLED ===');
   console.log('Received data:', data);
-  
+
   const validatedFields = DeleteRequestSchema.safeParse(data);
 
   if (!validatedFields.success) {
@@ -440,7 +440,7 @@ export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSche
 
   try {
     const { id } = validatedFields.data;
-    
+
     if (!id) {
       console.error('No ID provided to deleteRequestAction');
       return { success: false, message: 'ID de solicitud no proporcionado.' };
@@ -452,7 +452,7 @@ export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSche
     // Delete directly - Firestore handles offline persistence automatically
     await deleteDoc(docRef);
     console.log('Successfully deleted request:', id);
-    
+
     revalidatePath('/requests');
     return { success: true, message: 'Solicitud eliminada correctamente.' };
   } catch (e: any) {
@@ -463,24 +463,31 @@ export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSche
 }
 
 export async function paralyzeRequestAction(data: z.infer<typeof ParalyzeRequestSchema>) {
+  console.log('=== server: paralyzeRequestAction CALLED ===');
+  console.log('Server received data:', data);
   const validatedFields = ParalyzeRequestSchema.safeParse(data);
 
   if (!validatedFields.success) {
+    console.error('Server: Validation failed:', validatedFields.error.flatten().fieldErrors);
     return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
   }
 
   if (!db) {
+    console.error('Server: DB not available');
     return { success: false, message: 'La base de datos no está disponible.' };
   }
 
   try {
     const { id } = validatedFields.data;
+    console.log('Server: Updating document requests/' + id + ' with endDate');
     const requestRef = doc(db, 'requests', id);
     await updateDoc(requestRef, { endDate: Timestamp.fromDate(new Date()) });
+    console.log('Server: Document successfully updated');
 
     revalidatePath('/requests');
     return { success: true, message: 'El servicio continuo ha sido paralizado.' };
   } catch (e: any) {
+    console.error('Server: Error in updateDoc:', e);
     return { success: false, message: e.message || 'Error al paralizar la solicitud.' };
   }
 }
