@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db, auth } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AddPublisherDialog } from '@/components/add-publisher-dialog';
 import { PublisherActions } from '@/components/publisher-actions';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import type { Publisher } from '@/lib/types';
 
 const serializePublisher = (doc: any): Publisher => {
@@ -22,6 +23,7 @@ export default function PublishersPage() {
     const [publishers, setPublishers] = useState<Publisher[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const fetchPublishers = async () => {
         try {
@@ -48,6 +50,12 @@ export default function PublishersPage() {
         setRefreshKey((prev) => prev + 1);
     };
 
+    const filteredPublishers = useMemo(() => {
+        return publishers.filter((pub) =>
+            pub.name.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [publishers, searchQuery]);
+
     return (
         <div className="flex flex-col w-full space-y-4">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 print:hidden">
@@ -58,6 +66,12 @@ export default function PublishersPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 w-full md:w-auto">
+                    <Input
+                        placeholder="Buscar publicador..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full md:w-[250px]"
+                    />
                     <AddPublisherDialog onComplete={handleComplete} />
                 </div>
             </div>
@@ -77,24 +91,30 @@ export default function PublishersPage() {
                             <Skeleton className="h-10 w-full" />
                         </div>
                     ) : publishers.length > 0 ? (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Nombre</TableHead>
-                                    <TableHead className="text-right print:hidden">Acciones</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {publishers.map((pub) => (
-                                    <TableRow key={pub.id}>
-                                        <TableCell className="font-medium">{pub.name}</TableCell>
-                                        <TableCell className="text-right print:hidden">
-                                            <PublisherActions publisher={pub} onActionComplete={handleComplete} />
-                                        </TableCell>
+                        filteredPublishers.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead className="text-right print:hidden">Acciones</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredPublishers.map((pub) => (
+                                        <TableRow key={pub.id}>
+                                            <TableCell className="font-medium">{pub.name}</TableCell>
+                                            <TableCell className="text-right print:hidden">
+                                                <PublisherActions publisher={pub} onActionComplete={handleComplete} />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        ) : (
+                            <p className="text-muted-foreground text-center py-10">
+                                No se encontraron publicadores que coincidan con &quot;{searchQuery}&quot;.
+                            </p>
+                        )
                     ) : (
                         <p className="text-muted-foreground text-center py-10">
                             No hay publicadores registrados. Haz clic en &quot;Añadir Publicador&quot; para crear uno.
