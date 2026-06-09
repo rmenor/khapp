@@ -734,3 +734,206 @@ export async function deleteAnnualAssignmentAction(id: string, type: 'pioneer_ta
     return { success: false, message: e.message || 'Error al eliminar el registro.' };
   }
 }
+
+// ==========================================
+// PUBLISHERS, GROUPS AND PRIVILEGES SCHEMAS
+// ==========================================
+
+const PublisherSchema = z.object({
+  name: z.string().min(2, { message: 'El nombre debe tener al menos 2 caracteres.' }),
+});
+
+const UpdatePublisherSchema = PublisherSchema.extend({
+  id: z.string().min(1),
+});
+
+const DeletePublisherSchema = z.object({
+  id: z.string().min(1),
+});
+
+const GroupSchema = z.object({
+  name: z.string().min(2, { message: 'El nombre del grupo debe tener al menos 2 caracteres.' }),
+  superintendentId: z.string().optional().nullable(),
+  auxiliaryId: z.string().optional().nullable(),
+  publisherIds: z.array(z.string()).default([]),
+});
+
+const UpdateGroupSchema = GroupSchema.extend({
+  id: z.string().min(1),
+});
+
+const DeleteGroupSchema = z.object({
+  id: z.string().min(1),
+});
+
+const PrivilegeSchema = z.object({
+  name: z.string().min(2, { message: 'El nombre del privilegio debe tener al menos 2 caracteres.' }),
+  publisherIds: z.array(z.string()).default([]),
+});
+
+const UpdatePrivilegeSchema = PrivilegeSchema.extend({
+  id: z.string().min(1),
+});
+
+const DeletePrivilegeSchema = z.object({
+  id: z.string().min(1),
+});
+
+// ==========================================
+// ACTIONS FOR PUBLISHERS
+// ==========================================
+
+export async function addPublisherAction(data: z.infer<typeof PublisherSchema>) {
+  const validatedFields = PublisherSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await addDoc(collection(db, 'publishers'), validatedFields.data);
+    revalidatePath('/publishers');
+    revalidatePath('/groups');
+    revalidatePath('/privileges');
+    return { success: true, message: 'Publicador añadido correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el publicador.' };
+  }
+}
+
+export async function updatePublisherAction(data: z.infer<typeof UpdatePublisherSchema>) {
+  const validatedFields = UpdatePublisherSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { id, name } = validatedFields.data;
+    await updateDoc(doc(db, 'publishers', id), { name });
+    revalidatePath('/publishers');
+    revalidatePath('/groups');
+    revalidatePath('/privileges');
+    return { success: true, message: 'Publicador actualizado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el publicador.' };
+  }
+}
+
+export async function deletePublisherAction(data: z.infer<typeof DeletePublisherSchema>) {
+  const validatedFields = DeletePublisherSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.' };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { id } = validatedFields.data;
+    await deleteDoc(doc(db, 'publishers', id));
+    revalidatePath('/publishers');
+    revalidatePath('/groups');
+    revalidatePath('/privileges');
+    return { success: true, message: 'Publicador eliminado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar el publicador.' };
+  }
+}
+
+// ==========================================
+// ACTIONS FOR GROUPS
+// ==========================================
+
+export async function addGroupAction(data: z.infer<typeof GroupSchema>) {
+  const validatedFields = GroupSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await addDoc(collection(db, 'groups'), validatedFields.data);
+    revalidatePath('/groups');
+    return { success: true, message: 'Grupo añadido correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el grupo.' };
+  }
+}
+
+export async function updateGroupAction(data: z.infer<typeof UpdateGroupSchema>) {
+  const validatedFields = UpdateGroupSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { id, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'groups', id), rest);
+    revalidatePath('/groups');
+    return { success: true, message: 'Grupo actualizado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el grupo.' };
+  }
+}
+
+export async function deleteGroupAction(data: z.infer<typeof DeleteGroupSchema>) {
+  const validatedFields = DeleteGroupSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.' };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { id } = validatedFields.data;
+    await deleteDoc(doc(db, 'groups', id));
+    revalidatePath('/groups');
+    return { success: true, message: 'Grupo eliminado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar el grupo.' };
+  }
+}
+
+// ==========================================
+// ACTIONS FOR PRIVILEGES
+// ==========================================
+
+export async function addPrivilegeAction(data: z.infer<typeof PrivilegeSchema>) {
+  const validatedFields = PrivilegeSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await addDoc(collection(db, 'privileges'), validatedFields.data);
+    revalidatePath('/privileges');
+    return { success: true, message: 'Privilegio añadido correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el privilegio.' };
+  }
+}
+
+export async function updatePrivilegeAction(data: z.infer<typeof UpdatePrivilegeSchema>) {
+  const validatedFields = UpdatePrivilegeSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { id, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'privileges', id), rest);
+    revalidatePath('/privileges');
+    return { success: true, message: 'Privilegio actualizado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el privilegio.' };
+  }
+}
+
+export async function deletePrivilegeAction(data: z.infer<typeof DeletePrivilegeSchema>) {
+  const validatedFields = DeletePrivilegeSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.' };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    const { id } = validatedFields.data;
+    await deleteDoc(doc(db, 'privileges', id));
+    revalidatePath('/privileges');
+    return { success: true, message: 'Privilegio eliminado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar el privilegio.' };
+  }
+}

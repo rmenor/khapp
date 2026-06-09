@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, Landmark, ClipboardList, Settings, LogOut, CalendarDays } from 'lucide-react';
+import { Home, Landmark, ClipboardList, Settings, LogOut, CalendarDays, Users, Layers, Award } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -30,6 +30,21 @@ const navLinks = [
     href: '/annual-assignments',
     icon: CalendarDays,
     label: 'Anuales',
+  },
+  {
+    href: '/publishers',
+    icon: Users,
+    label: 'Publicadores',
+  },
+  {
+    href: '/groups',
+    icon: Layers,
+    label: 'Grupos',
+  },
+  {
+    href: '/privileges',
+    icon: Award,
+    label: 'Privilegios',
   },
 ];
 
