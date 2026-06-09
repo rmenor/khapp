@@ -1,0 +1,10 @@
+change_name: groups-system
+current_phase: apply
+completed_phases:
+  - proposal
+  - specs
+  - design
+  - tasks
+mode: interactive
+artifact_store: openspec
+strict_tdd: false
