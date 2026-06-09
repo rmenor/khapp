@@ -937,3 +937,82 @@ export async function deletePrivilegeAction(data: z.infer<typeof DeletePrivilege
     return { success: false, message: e.message || 'Error al eliminar el privilegio.' };
   }
 }
+
+// ==========================================
+// RESTORE SCHEMAS & ACTIONS FOR NEW ENTITIES
+// ==========================================
+
+const RestorePublisherSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+const RestoreGroupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  superintendentId: z.string().optional().nullable(),
+  auxiliaryId: z.string().optional().nullable(),
+  publisherIds: z.array(z.string()).default([]),
+});
+
+const RestorePrivilegeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  publisherIds: z.array(z.string()).default([]),
+});
+
+export async function restorePublishersAction(publishers: unknown[]) {
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  const batch = writeBatch(db);
+  try {
+    for (const item of publishers) {
+      const validated = RestorePublisherSchema.safeParse(item);
+      if (!validated.success) continue;
+      const { id, ...data } = validated.data;
+      batch.set(doc(db, 'publishers', id), data);
+    }
+    await batch.commit();
+    revalidatePath('/publishers');
+    revalidatePath('/groups');
+    revalidatePath('/privileges');
+    return { success: true, message: 'Publicadores restaurados correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al restaurar publicadores.' };
+  }
+}
+
+export async function restoreGroupsAction(groups: unknown[]) {
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  const batch = writeBatch(db);
+  try {
+    for (const item of groups) {
+      const validated = RestoreGroupSchema.safeParse(item);
+      if (!validated.success) continue;
+      const { id, ...data } = validated.data;
+      batch.set(doc(db, 'groups', id), data);
+    }
+    await batch.commit();
+    revalidatePath('/groups');
+    return { success: true, message: 'Grupos restaurados correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al restaurar grupos.' };
+  }
+}
+
+export async function restorePrivilegesAction(privileges: unknown[]) {
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  const batch = writeBatch(db);
+  try {
+    for (const item of privileges) {
+      const validated = RestorePrivilegeSchema.safeParse(item);
+      if (!validated.success) continue;
+      const { id, ...data } = validated.data;
+      batch.set(doc(db, 'privileges', id), data);
+    }
+    await batch.commit();
+    revalidatePath('/privileges');
+    return { success: true, message: 'Privilegios restaurados correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al restaurar privilegios.' };
+  }
+}
