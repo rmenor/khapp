@@ -40,7 +40,7 @@ export async function loginAction(data: z.infer<typeof LoginSchema>) {
     const sessionToken = await signSession(expireTime);
     
     const cookieStore = await cookies();
-    cookieStore.set('khapp_session', sessionToken, {
+    cookieStore.set('__session', sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -56,13 +56,13 @@ export async function loginAction(data: z.infer<typeof LoginSchema>) {
 
 export async function logoutAction() {
   const cookieStore = await cookies();
-  cookieStore.delete('khapp_session');
+  cookieStore.delete('__session');
   return { success: true, message: 'Sesión cerrada correctamente.' };
 }
 
 export async function verifySessionOrThrow() {
   const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get('khapp_session')?.value;
+  const sessionCookie = cookieStore.get('__session')?.value;
   const isValid = await verifySession(sessionCookie);
   if (!isValid) {
     throw new Error('No autorizado.');
