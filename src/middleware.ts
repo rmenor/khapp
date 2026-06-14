@@ -16,7 +16,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Read cookie
-  const sessionCookie = request.cookies.get('khapp_session')?.value;
+  const sessionCookie = request.cookies.get('__session')?.value;
   const isSessionValid = await verifySession(sessionCookie);
 
   // Check if it matches any protected route
