@@ -81,31 +81,36 @@ export default function PrivilegesPage() {
                 </div>
             </div>
 
-            {/* Print View: Clean, styled list only visible during printing */}
-            <div className="hidden print:block space-y-6">
-                <div className="border-b pb-4">
-                    <h1 className="text-2xl font-bold">Listado de Privilegios de Servicio</h1>
-                    <p className="text-xs text-muted-foreground mt-1">
+            {/* Print View: Clean, styled grid only visible during printing */}
+            <div className="hidden print:block space-y-3">
+                <div className="border-b pb-2">
+                    <h1 className="text-base font-bold">Listado de Privilegios de Servicio</h1>
+                    <p className="text-[9px] text-muted-foreground mt-0.5">
                         Generado el {new Date().toLocaleDateString('es-ES')} - KH App
                     </p>
                 </div>
-                <div className="divide-y">
+                <div className="print:grid print:grid-cols-3 print:gap-2">
                     {privileges.map(priv => {
                         const members = priv.publisherIds.map(id => getPublisherName(id)).filter(Boolean);
                         return (
-                            <div key={priv.id} className="py-4">
-                                <h2 className="text-lg font-bold mb-2">
-                                    {priv.name} ({members.length})
-                                </h2>
-                                {members.length > 0 ? (
-                                    <p className="text-sm text-foreground leading-relaxed">
-                                        {members.join(', ')}
-                                    </p>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground italic">
-                                        No hay publicadores asignados a este privilegio.
-                                    </p>
-                                )}
+                            <div key={priv.id} className="border border-gray-400 p-2 rounded print:break-inside-avoid flex flex-col justify-between bg-white">
+                                <div>
+                                    <h2 className="text-xs font-bold border-b pb-1 mb-1 text-primary">
+                                        {priv.name}
+                                    </h2>
+                                    {members.length > 0 ? (
+                                        <p className="text-[10px] text-gray-800 leading-snug">
+                                            {members.join(', ')}
+                                        </p>
+                                    ) : (
+                                        <p className="text-[9px] text-muted-foreground italic">
+                                            Sin publicadores asignados
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="text-[8px] text-muted-foreground mt-2 text-right">
+                                    Total: {members.length}
+                                </div>
                             </div>
                         );
                     })}
