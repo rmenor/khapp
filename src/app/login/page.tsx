@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { AppLogo } from '@/components/icons';
+import { loginAction } from '@/lib/actions';
 
 const loginSchema = z.object({
   username: z.string().min(1, { message: 'El nombre de usuario es obligatorio.' }),
@@ -38,19 +39,20 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = (data: LoginFormValues) => {
-    if (data.username === 'admin_prado' && data.password === 'LucasMateo1914') {
-      localStorage.setItem('isAuthenticated', 'true');
+  const onSubmit = async (data: LoginFormValues) => {
+    const result = await loginAction(data);
+    if (result.success) {
       toast({
         title: 'Éxito',
-        description: 'Inicio de sesión correcto.',
+        description: result.message,
       });
       router.push('/dashboard');
+      router.refresh();
     } else {
       toast({
         variant: 'destructive',
         title: 'Error de inicio de sesión',
-        description: 'Nombre de usuario o contraseña incorrectos.',
+        description: result.message,
       });
     }
   };

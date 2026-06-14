@@ -6,12 +6,12 @@ import { getAuth } from 'firebase/auth';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  projectId: 'finanzas-jw',
-  appId: '1:857727640897:web:5ed8d3d20e9b2452afadc0',
-  storageBucket: 'finanzas-jw.firebasestorage.app',
-  apiKey: 'AIzaSyBW7N7R4YGnIArQNL_5Onewntgq25RKnVo',
-  authDomain: 'finanzas-jw.firebaseapp.com',
-  messagingSenderId: '857727640897',
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
 };
 
 // Initialize Firebase

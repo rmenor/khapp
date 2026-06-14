@@ -54,7 +54,7 @@ export function AddMemorialDialog({ initialData }: AddMemorialDialogProps) {
         resolver: zodResolver(FormSchema),
         defaultValues: {
             year: initialData?.year || new Date().getFullYear(),
-            date: initialData?.date ? format(new Date((initialData.date as any).seconds * 1000), 'yyyy-MM-dd') : '',
+            date: initialData?.date ? format(new Date(initialData.date), 'yyyy-MM-dd') : '',
             president: initialData?.president || '',
             openingPrayer: initialData?.openingPrayer || '',
             speaker: initialData?.speaker || '',

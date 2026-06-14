@@ -57,7 +57,7 @@ export function AddSpecialTalkDialog({ initialData }: AddSpecialTalkDialogProps)
             speaker: initialData?.speaker || '',
             auxiliarySpeaker: initialData?.auxiliarySpeaker || '',
             closingPrayer: initialData?.closingPrayer || '',
-            date: initialData?.date ? format(new Date((initialData.date as any).seconds * 1000), 'yyyy-MM-dd') : '',
+            date: initialData?.date ? format(new Date(initialData.date), 'yyyy-MM-dd') : '',
         },
     });
 

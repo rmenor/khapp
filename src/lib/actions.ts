@@ -14,8 +14,61 @@ import {
   deleteDoc,
   getDoc,
   setDoc,
+  getDocs,
 } from 'firebase/firestore';
 import type { RequestStatus, TransactionStatus } from './types';
+import { cookies } from 'next/headers';
+import { signSession, verifySession } from './auth-session';
+
+const LoginSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
+export async function loginAction(data: z.infer<typeof LoginSchema>) {
+  const validatedFields = LoginSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Usuario y contraseña son obligatorios.' };
+  }
+
+  const { username, password } = validatedFields.data;
+  const adminUser = process.env.ADMIN_USERNAME || 'admin_prado';
+  const adminPass = process.env.ADMIN_PASSWORD || 'LucasMateo1914';
+
+  if (username === adminUser && password === adminPass) {
+    const expireTime = String(Date.now() + 1000 * 60 * 60 * 24);
+    const sessionToken = await signSession(expireTime);
+    
+    const cookieStore = await cookies();
+    cookieStore.set('khapp_session', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24,
+      path: '/',
+    });
+
+    return { success: true, message: 'Inicio de sesión correcto.' };
+  }
+
+  return { success: false, message: 'Usuario o contraseña incorrectos.' };
+}
+
+export async function logoutAction() {
+  const cookieStore = await cookies();
+  cookieStore.delete('khapp_session');
+  return { success: true, message: 'Sesión cerrada correctamente.' };
+}
+
+export async function verifySessionOrThrow() {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get('khapp_session')?.value;
+  const isValid = await verifySession(sessionCookie);
+  if (!isValid) {
+    throw new Error('No autorizado.');
+  }
+}
+
 
 const IncomeSchema = z.object({
   amount: z.coerce.number().positive({ message: 'La cantidad debe ser un número positivo.' }),
@@ -122,6 +175,7 @@ export async function addIncomeAction(data: z.infer<typeof IncomeSchema>) {
   }
 
   try {
+    await verifySessionOrThrow();
     const { amount, date, description, category } = validatedFields.data;
 
     let status: TransactionStatus;
@@ -167,6 +221,7 @@ export async function addBatchIncomeAction(data: z.infer<typeof BatchIncomeSchem
   }
 
   try {
+    await verifySessionOrThrow();
     const { date, incomes } = validatedFields.data;
     const batch = writeBatch(db);
 
@@ -209,6 +264,7 @@ export async function addExpenseAction(data: z.infer<typeof ExpenseSchema>) {
   }
 
   try {
+    await verifySessionOrThrow();
     const { amount, date, description } = validatedFields.data;
     await addDoc(collection(db, 'transactions'), {
       type: 'expense',
@@ -236,6 +292,7 @@ export async function addBranchTransferAction(data: z.infer<typeof BranchTransfe
   }
 
   try {
+    await verifySessionOrThrow();
     const { amount, date, description, transactionIds } = validatedFields.data;
 
     const batch = writeBatch(db);
@@ -275,6 +332,7 @@ export async function updateTransactionAction(data: z.infer<typeof UpdateTransac
   }
 
   try {
+    await verifySessionOrThrow();
     const { id, ...rest } = validatedFields.data;
 
     const transactionRef = doc(db, 'transactions', id);
@@ -318,6 +376,7 @@ export async function deleteTransactionAction(data: z.infer<typeof DeleteTransac
   }
 
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
     await deleteDoc(doc(db, 'transactions', id));
     revalidatePath('/finance');
@@ -336,6 +395,7 @@ export async function restoreTransactionsAction(transactions: unknown[]) {
   const batch = writeBatch(db);
 
   try {
+    await verifySessionOrThrow();
     for (const transactionData of transactions) {
       const { id, ...dataToValidate } = transactionData as any;
 
@@ -410,6 +470,7 @@ export async function updateRequestStatusAction(data: z.infer<typeof UpdateReque
   }
 
   try {
+    await verifySessionOrThrow();
     const { id, status } = validatedFields.data;
     const requestRef = doc(db, 'requests', id);
     await updateDoc(requestRef, { status });
@@ -439,6 +500,7 @@ export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSche
   }
 
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
 
     if (!id) {
@@ -478,6 +540,7 @@ export async function paralyzeRequestAction(data: z.infer<typeof ParalyzeRequest
   }
 
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
     console.log('Server: Updating document requests/' + id + ' with endDate');
     const requestRef = doc(db, 'requests', id);
@@ -523,6 +586,7 @@ export async function updateCongregationAction(data: z.infer<typeof Congregation
   }
 
   try {
+    await verifySessionOrThrow();
     const { name } = validatedFields.data;
     const docRef = doc(db, 'congregations', 'main');
     await setDoc(docRef, { name });
@@ -556,6 +620,7 @@ export async function addResolutionAction(data: z.infer<typeof ResolutionSchema>
   }
 
   try {
+    await verifySessionOrThrow();
     const { amount, startDate, description } = validatedFields.data;
 
     await addDoc(collection(db, 'resolutions'), {
@@ -583,6 +648,7 @@ export async function deleteResolutionAction(data: z.infer<typeof DeleteResoluti
   }
 
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
     await deleteDoc(doc(db, 'resolutions', id));
     revalidatePath('/finance');
@@ -627,6 +693,7 @@ export async function addPioneerTalkAction(data: z.infer<typeof PioneerTalkSchem
   if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { date, ...rest } = validatedFields.data;
     await addDoc(collection(db, 'pioneer_talks'), {
       ...rest,
@@ -644,6 +711,7 @@ export async function addSpecialTalkAction(data: z.infer<typeof SpecialTalkSchem
   if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { date, ...rest } = validatedFields.data;
     await addDoc(collection(db, 'special_talks'), {
       ...rest,
@@ -661,6 +729,7 @@ export async function addMemorialAction(data: z.infer<typeof MemorialSchema>) {
   if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { date, ...rest } = validatedFields.data;
     await addDoc(collection(db, 'memorials'), {
       ...rest,
@@ -678,6 +747,7 @@ export async function updatePioneerTalkAction(id: string, data: z.infer<typeof P
   if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { date, ...rest } = validatedFields.data;
     await updateDoc(doc(db, 'pioneer_talks', id), {
       ...rest,
@@ -695,6 +765,7 @@ export async function updateSpecialTalkAction(id: string, data: z.infer<typeof S
   if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { date, ...rest } = validatedFields.data;
     await updateDoc(doc(db, 'special_talks', id), {
       ...rest,
@@ -712,6 +783,7 @@ export async function updateMemorialAction(id: string, data: z.infer<typeof Memo
   if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { date, ...rest } = validatedFields.data;
     await updateDoc(doc(db, 'memorials', id), {
       ...rest,
@@ -727,6 +799,7 @@ export async function updateMemorialAction(id: string, data: z.infer<typeof Memo
 export async function deleteAnnualAssignmentAction(id: string, type: 'pioneer_talks' | 'special_talks' | 'memorials') {
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     await deleteDoc(doc(db, type, id));
     revalidatePath('/annual-assignments');
     return { success: true, message: 'Registro eliminado correctamente.' };
@@ -790,6 +863,7 @@ export async function addPublisherAction(data: z.infer<typeof PublisherSchema>) 
   }
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     await addDoc(collection(db, 'publishers'), validatedFields.data);
     revalidatePath('/publishers');
     revalidatePath('/groups');
@@ -807,6 +881,7 @@ export async function updatePublisherAction(data: z.infer<typeof UpdatePublisher
   }
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { id, name } = validatedFields.data;
     await updateDoc(doc(db, 'publishers', id), { name });
     revalidatePath('/publishers');
@@ -825,12 +900,57 @@ export async function deletePublisherAction(data: z.infer<typeof DeletePublisher
   }
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
-    await deleteDoc(doc(db, 'publishers', id));
+
+    const batch = writeBatch(db);
+
+    // 1. Delete publisher document
+    batch.delete(doc(db, 'publishers', id));
+
+    // 2. Fetch all groups and remove publisher from superintendent, auxiliary and member list
+    const groupsCol = collection(db, 'groups');
+    const groupsSnap = await getDocs(groupsCol);
+    groupsSnap.docs.forEach((groupDoc) => {
+      const groupData = groupDoc.data();
+      const publisherIds = groupData.publisherIds || [];
+      const isSuper = groupData.superintendentId === id;
+      const isAux = groupData.auxiliaryId === id;
+      const isMember = publisherIds.includes(id);
+
+      if (isSuper || isAux || isMember) {
+        const updateData: any = {};
+        if (isSuper) updateData.superintendentId = null;
+        if (isAux) updateData.auxiliaryId = null;
+        if (isMember) {
+          updateData.publisherIds = publisherIds.filter((pubId: string) => pubId !== id);
+        }
+        batch.update(doc(db, 'groups', groupDoc.id), updateData);
+      }
+    });
+
+    // 3. Fetch all privileges and remove publisher from member list
+    const privilegesCol = collection(db, 'privileges');
+    const privilegesSnap = await getDocs(privilegesCol);
+    privilegesSnap.docs.forEach((privDoc) => {
+      const privData = privDoc.data();
+      const publisherIds = privData.publisherIds || [];
+      const isMember = publisherIds.includes(id);
+
+      if (isMember) {
+        batch.update(doc(db, 'privileges', privDoc.id), {
+          publisherIds: publisherIds.filter((pubId: string) => pubId !== id),
+        });
+      }
+    });
+
+    // Commit all updates atomically
+    await batch.commit();
+
     revalidatePath('/publishers');
     revalidatePath('/groups');
     revalidatePath('/privileges');
-    return { success: true, message: 'Publicador eliminado correctamente.' };
+    return { success: true, message: 'Publicador y todas sus referencias en grupos/privilegios eliminados correctamente.' };
   } catch (e: any) {
     return { success: false, message: e.message || 'Error al eliminar el publicador.' };
   }
@@ -847,6 +967,7 @@ export async function addGroupAction(data: z.infer<typeof GroupSchema>) {
   }
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     await addDoc(collection(db, 'groups'), validatedFields.data);
     revalidatePath('/groups');
     return { success: true, message: 'Grupo añadido correctamente.' };
@@ -862,6 +983,7 @@ export async function updateGroupAction(data: z.infer<typeof UpdateGroupSchema>)
   }
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { id, ...rest } = validatedFields.data;
     await updateDoc(doc(db, 'groups', id), rest);
     revalidatePath('/groups');
@@ -878,6 +1000,7 @@ export async function deleteGroupAction(data: z.infer<typeof DeleteGroupSchema>)
   }
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
     await deleteDoc(doc(db, 'groups', id));
     revalidatePath('/groups');
@@ -898,6 +1021,7 @@ export async function addPrivilegeAction(data: z.infer<typeof PrivilegeSchema>) 
   }
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     await addDoc(collection(db, 'privileges'), validatedFields.data);
     revalidatePath('/privileges');
     return { success: true, message: 'Privilegio añadido correctamente.' };
@@ -913,6 +1037,7 @@ export async function updatePrivilegeAction(data: z.infer<typeof UpdatePrivilege
   }
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { id, ...rest } = validatedFields.data;
     await updateDoc(doc(db, 'privileges', id), rest);
     revalidatePath('/privileges');
@@ -929,6 +1054,7 @@ export async function deletePrivilegeAction(data: z.infer<typeof DeletePrivilege
   }
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
     await deleteDoc(doc(db, 'privileges', id));
     revalidatePath('/privileges');
@@ -965,6 +1091,7 @@ export async function restorePublishersAction(publishers: unknown[]) {
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   const batch = writeBatch(db);
   try {
+    await verifySessionOrThrow();
     for (const item of publishers) {
       const validated = RestorePublisherSchema.safeParse(item);
       if (!validated.success) continue;
@@ -985,6 +1112,7 @@ export async function restoreGroupsAction(groups: unknown[]) {
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   const batch = writeBatch(db);
   try {
+    await verifySessionOrThrow();
     for (const item of groups) {
       const validated = RestoreGroupSchema.safeParse(item);
       if (!validated.success) continue;
@@ -1003,6 +1131,7 @@ export async function restorePrivilegesAction(privileges: unknown[]) {
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };
   const batch = writeBatch(db);
   try {
+    await verifySessionOrThrow();
     for (const item of privileges) {
       const validated = RestorePrivilegeSchema.safeParse(item);
       if (!validated.success) continue;
