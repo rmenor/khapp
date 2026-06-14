@@ -7,10 +7,11 @@ import { signInAnonymously } from 'firebase/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { AddGroupDialog } from '@/components/add-group-dialog';
 import { GroupActions } from '@/components/group-actions';
 import type { Group, Publisher } from '@/lib/types';
-import { User, ShieldAlert, Users } from 'lucide-react';
+import { User, ShieldAlert, Users, Printer } from 'lucide-react';
 
 export default function GroupsPage() {
     const [groups, setGroups] = useState<Group[]>([]);
@@ -66,6 +67,7 @@ export default function GroupsPage() {
 
     return (
         <div className="flex flex-col w-full space-y-4">
+            {/* Header visible on screen only */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 print:hidden">
                 <div className="space-y-1">
                     <h1 className="text-2xl font-bold tracking-tight">Grupos</h1>
@@ -74,18 +76,72 @@ export default function GroupsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 w-full md:w-auto">
+                    <Button variant="outline" onClick={() => window.print()} className="w-full md:w-auto">
+                        <Printer className="mr-2 h-4 w-4" />
+                        Imprimir PDF
+                    </Button>
                     <AddGroupDialog publishers={publishers} onComplete={handleComplete} />
                 </div>
             </div>
 
+            {/* Print View: Clean, styled grid only visible during printing */}
+            <div className="hidden print:block space-y-3">
+                <div className="border-b pb-2">
+                    <h1 className="text-base font-bold">Listado de Grupos de Servicio</h1>
+                    <p className="text-[9px] text-muted-foreground mt-0.5">
+                        Generado el {new Date().toLocaleDateString('es-ES')} - KH App
+                    </p>
+                </div>
+                <div className="print:grid print:grid-cols-3 print:gap-2">
+                    {groups.map(group => {
+                        const superName = getPublisherName(group.superintendentId);
+                        const auxName = getPublisherName(group.auxiliaryId);
+                        const members = group.publisherIds.map(id => getPublisherName(id)).filter(Boolean);
+
+                        return (
+                            <div key={group.id} className="border border-gray-400 p-2 rounded print:break-inside-avoid flex flex-col justify-between bg-white">
+                                <div>
+                                    <h2 className="text-xs font-bold border-b pb-1 mb-1 text-primary">
+                                        {group.name}
+                                    </h2>
+                                    <div className="space-y-0.5 text-[9px] text-gray-700 mb-1.5">
+                                        <div className="flex gap-1">
+                                            <span className="font-semibold">Superintendente:</span>
+                                            <span>{superName || 'Sin asignar'}</span>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <span className="font-semibold">Auxiliar:</span>
+                                            <span>{auxName || 'Sin asignar'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="border-t pt-1">
+                                        <p className="text-[8px] font-semibold mb-0.5 text-gray-800">Miembros ({members.length}):</p>
+                                        {members.length > 0 ? (
+                                            <p className="text-[9px] text-gray-800 leading-snug">
+                                                {members.join(', ')}
+                                            </p>
+                                        ) : (
+                                            <p className="text-[8px] text-muted-foreground italic">
+                                                Sin publicadores asignados
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Grid visible on screen only */}
             {loading ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 print:hidden">
                     <Skeleton className="h-[250px] w-full" />
                     <Skeleton className="h-[250px] w-full" />
                     <Skeleton className="h-[250px] w-full" />
                 </div>
             ) : groups.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 print:hidden">
                     {groups.map(group => {
                         const superName = getPublisherName(group.superintendentId);
                         const auxName = getPublisherName(group.auxiliaryId);
@@ -151,7 +207,7 @@ export default function GroupsPage() {
                     })}
                 </div>
             ) : (
-                <Card>
+                <Card className="print:hidden">
                     <CardContent className="text-center py-10 space-y-2">
                         <p className="text-muted-foreground">
                             No hay grupos creados. Haz clic en &quot;Añadir Grupo&quot; para registrar uno.
