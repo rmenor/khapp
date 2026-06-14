@@ -48,13 +48,16 @@ const navLinks = [
   },
 ];
 
+import { logoutAction } from '@/lib/actions';
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
+  const handleLogout = async () => {
+    await logoutAction();
     router.push('/login');
+    router.refresh();
   };
 
   return (

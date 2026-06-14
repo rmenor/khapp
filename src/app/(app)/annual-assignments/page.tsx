@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,17 +26,38 @@ export default function AnnualAssignmentsPage() {
 
         const qPioneer = query(collection(db, 'pioneer_talks'), orderBy('year', 'desc'));
         const unsubPioneer = onSnapshot(qPioneer, (snapshot) => {
-            setPioneerTalks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PioneerTalk)));
+            setPioneerTalks(snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    ...data,
+                    id: doc.id,
+                    date: data.date ? (data.date as Timestamp).toDate() : new Date(),
+                } as PioneerTalk;
+            }));
         });
 
         const qSpecial = query(collection(db, 'special_talks'), orderBy('year', 'desc'));
         const unsubSpecial = onSnapshot(qSpecial, (snapshot) => {
-            setSpecialTalks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SpecialTalk)));
+            setSpecialTalks(snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    ...data,
+                    id: doc.id,
+                    date: data.date ? (data.date as Timestamp).toDate() : new Date(),
+                } as SpecialTalk;
+            }));
         });
 
         const qMemorial = query(collection(db, 'memorials'), orderBy('year', 'desc'));
         const unsubMemorial = onSnapshot(qMemorial, (snapshot) => {
-            setMemorials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Memorial)));
+            setMemorials(snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    ...data,
+                    id: doc.id,
+                    date: data.date ? (data.date as Timestamp).toDate() : new Date(),
+                } as Memorial;
+            }));
         });
 
         return () => {
@@ -52,12 +73,11 @@ export default function AnnualAssignmentsPage() {
         }
     };
 
-    const isDatePassed = (date: any) => {
+    const isDatePassed = (date: Date) => {
         if (!date) return false;
-        const assignmentDate = new Date((date as any).seconds * 1000);
-        // Compare dates ignoring time to be more user-friendly
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+        const assignmentDate = new Date(date);
         assignmentDate.setHours(0, 0, 0, 0);
         return assignmentDate < today;
     };
@@ -102,7 +122,7 @@ export default function AnnualAssignmentsPage() {
                                         {pioneerTalks.map((talk) => (
                                             <tr key={talk.id} className="border-b transition-colors hover:bg-muted/50">
                                                 <td className="p-2 align-middle">{talk.year}</td>
-                                                <td className="p-2 align-middle">{talk.date && format(new Date((talk.date as any).seconds * 1000), 'dd/MM/yyyy')}</td>
+                                                <td className="p-2 align-middle">{talk.date && format(talk.date, 'dd/MM/yyyy')}</td>
                                                 <td className="p-2 align-middle">{talk.speaker1}</td>
                                                 <td className="p-2 align-middle">{talk.speaker2}</td>
                                                 <td className="p-2 align-middle">{talk.openingPrayer}</td>
@@ -153,7 +173,7 @@ export default function AnnualAssignmentsPage() {
                                         {specialTalks.map((talk) => (
                                             <tr key={talk.id} className="border-b transition-colors hover:bg-muted/50">
                                                 <td className="p-2 align-middle">{talk.year}</td>
-                                                <td className="p-2 align-middle">{talk.date && format(new Date((talk.date as any).seconds * 1000), 'dd/MM/yyyy')}</td>
+                                                <td className="p-2 align-middle">{talk.date && format(talk.date, 'dd/MM/yyyy')}</td>
                                                 <td className="p-2 align-middle">{talk.president}</td>
                                                 <td className="p-2 align-middle">{talk.speaker}</td>
                                                 <td className="p-2 align-middle">{talk.auxiliarySpeaker}</td>
@@ -205,7 +225,7 @@ export default function AnnualAssignmentsPage() {
                                         {memorials.map((memorial) => (
                                             <tr key={memorial.id} className="border-b transition-colors hover:bg-muted/50">
                                                 <td className="p-2 align-middle">{memorial.year}</td>
-                                                <td className="p-2 align-middle">{memorial.date && format(new Date((memorial.date as any).seconds * 1000), 'dd/MM/yyyy')}</td>
+                                                <td className="p-2 align-middle">{memorial.date && format(memorial.date, 'dd/MM/yyyy')}</td>
                                                 <td className="p-2 align-middle">{memorial.president}</td>
                                                 <td className="p-2 align-middle">{memorial.openingPrayer}</td>
                                                 <td className="p-2 align-middle">{memorial.speaker}</td>

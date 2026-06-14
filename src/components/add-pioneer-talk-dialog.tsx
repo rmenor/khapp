@@ -53,7 +53,7 @@ export function AddPioneerTalkDialog({ initialData }: AddPioneerTalkDialogProps)
         resolver: zodResolver(FormSchema),
         defaultValues: {
             year: initialData?.year || new Date().getFullYear(),
-            date: initialData?.date ? format(new Date((initialData.date as any).seconds * 1000), 'yyyy-MM-dd') : '',
+            date: initialData?.date ? format(new Date(initialData.date), 'yyyy-MM-dd') : '',
             speaker1: initialData?.speaker1 || '',
             speaker2: initialData?.speaker2 || '',
             openingPrayer: initialData?.openingPrayer || '',
