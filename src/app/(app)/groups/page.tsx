@@ -117,9 +117,11 @@ export default function GroupsPage() {
                                     <div className="border-t pt-1">
                                         <p className="text-[8px] font-semibold mb-0.5 text-gray-800">Miembros ({members.length}):</p>
                                         {members.length > 0 ? (
-                                            <p className="text-[9px] text-gray-800 leading-snug">
-                                                {members.join(', ')}
-                                            </p>
+                                            <div className="text-[9px] text-gray-800 leading-tight space-y-0.5">
+                                                {members.map((name, idx) => (
+                                                    <div key={idx}>{name}</div>
+                                                ))}
+                                            </div>
                                         ) : (
                                             <p className="text-[8px] text-muted-foreground italic">
                                                 Sin publicadores asignados

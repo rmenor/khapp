@@ -99,9 +99,11 @@ export default function PrivilegesPage() {
                                         {priv.name}
                                     </h2>
                                     {members.length > 0 ? (
-                                        <p className="text-[10px] text-gray-800 leading-snug">
-                                            {members.join(', ')}
-                                        </p>
+                                        <div className="text-[10px] text-gray-800 leading-tight space-y-0.5">
+                                            {members.map((name, idx) => (
+                                                <div key={idx}>{name}</div>
+                                            ))}
+                                        </div>
                                     ) : (
                                         <p className="text-[9px] text-muted-foreground italic">
                                             Sin publicadores asignados
