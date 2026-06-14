@@ -7,10 +7,11 @@ import { signInAnonymously } from 'firebase/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { AddPrivilegeDialog } from '@/components/add-privilege-dialog';
 import { PrivilegeActions } from '@/components/privilege-actions';
 import type { Privilege, Publisher } from '@/lib/types';
-import { Award, Users } from 'lucide-react';
+import { Award, Users, Printer } from 'lucide-react';
 
 export default function PrivilegesPage() {
     const [privileges, setPrivileges] = useState<Privilege[]>([]);
@@ -63,6 +64,7 @@ export default function PrivilegesPage() {
 
     return (
         <div className="flex flex-col w-full space-y-4">
+            {/* Header visible on screen only */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 print:hidden">
                 <div className="space-y-1">
                     <h1 className="text-2xl font-bold tracking-tight">Privilegios</h1>
@@ -71,18 +73,54 @@ export default function PrivilegesPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 w-full md:w-auto">
+                    <Button variant="outline" onClick={() => window.print()} className="w-full md:w-auto">
+                        <Printer className="mr-2 h-4 w-4" />
+                        Imprimir PDF
+                    </Button>
                     <AddPrivilegeDialog publishers={publishers} onComplete={handleComplete} />
                 </div>
             </div>
 
+            {/* Print View: Clean, styled list only visible during printing */}
+            <div className="hidden print:block space-y-6">
+                <div className="border-b pb-4">
+                    <h1 className="text-2xl font-bold">Listado de Privilegios de Servicio</h1>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        Generado el {new Date().toLocaleDateString('es-ES')} - KH App
+                    </p>
+                </div>
+                <div className="divide-y">
+                    {privileges.map(priv => {
+                        const members = priv.publisherIds.map(id => getPublisherName(id)).filter(Boolean);
+                        return (
+                            <div key={priv.id} className="py-4">
+                                <h2 className="text-lg font-bold mb-2">
+                                    {priv.name} ({members.length})
+                                </h2>
+                                {members.length > 0 ? (
+                                    <p className="text-sm text-foreground leading-relaxed">
+                                        {members.join(', ')}
+                                    </p>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground italic">
+                                        No hay publicadores asignados a este privilegio.
+                                    </p>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Grid visible on screen only */}
             {loading ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 print:hidden">
                     <Skeleton className="h-[200px] w-full" />
                     <Skeleton className="h-[200px] w-full" />
                     <Skeleton className="h-[200px] w-full" />
                 </div>
             ) : privileges.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 print:hidden">
                     {privileges.map(priv => {
                         const members = priv.publisherIds.map(id => getPublisherName(id)).filter(Boolean);
 
@@ -132,7 +170,7 @@ export default function PrivilegesPage() {
                     })}
                 </div>
             ) : (
-                <Card>
+                <Card className="print:hidden">
                     <CardContent className="text-center py-10 space-y-2">
                         <p className="text-muted-foreground">
                             No hay privilegios creados. Haz clic en &quot;Añadir Privilegio&quot; para registrar uno.
