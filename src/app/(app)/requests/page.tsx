@@ -196,13 +196,13 @@ export default function RequestsPage() {
         });
     }, [filteredRequests, monthFilter, yearFilter]);
 
-    // Solicitudes mensuales aprobadas para el mes seleccionado
+    // Solicitudes mensuales para el mes seleccionado
     const monthlyRequests = useMemo(() => {
         const selectedYear = yearFilter === 'todos' ? new Date().getFullYear() : parseInt(yearFilter);
         const selectedMonth = monthFilter === 'todos' ? null : monthNameToNumber[monthFilter];
 
         return filteredRequests.filter(request => {
-            if (request.isContinuous || request.status !== 'Aprobado') return false;
+            if (request.isContinuous) return false;
             if (!selectedMonth && monthFilter !== 'todos') return true;
             if (monthFilter === 'todos') return true;
             return request.months.includes(monthFilter);
