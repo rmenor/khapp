@@ -15,6 +15,7 @@ import {
   getDoc,
   setDoc,
   getDocs,
+  deleteField,
 } from 'firebase/firestore';
 import type { RequestStatus, TransactionStatus } from './types';
 import { cookies } from 'next/headers';
@@ -155,6 +156,10 @@ const DeleteRequestSchema = z.object({
 });
 
 const ParalyzeRequestSchema = z.object({
+  id: z.string().min(1, { message: 'El ID de la solicitud es obligatorio.' }),
+});
+
+const ReactivateRequestSchema = z.object({
   id: z.string().min(1, { message: 'El ID de la solicitud es obligatorio.' }),
 });
 
@@ -552,6 +557,30 @@ export async function paralyzeRequestAction(data: z.infer<typeof ParalyzeRequest
   } catch (e: any) {
     console.error('Server: Error in updateDoc:', e);
     return { success: false, message: e.message || 'Error al paralizar la solicitud.' };
+  }
+}
+
+export async function reactivateRequestAction(data: z.infer<typeof ReactivateRequestSchema>) {
+  const validatedFields = ReactivateRequestSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+
+  if (!db) {
+    return { success: false, message: 'La base de datos no está disponible.' };
+  }
+
+  try {
+    await verifySessionOrThrow();
+    const { id } = validatedFields.data;
+    const requestRef = doc(db, 'requests', id);
+    await updateDoc(requestRef, { endDate: deleteField() });
+
+    revalidatePath('/requests');
+    return { success: true, message: 'El servicio continuo ha sido reactivado.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al reactivar la solicitud.' };
   }
 }
 

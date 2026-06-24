@@ -11,9 +11,9 @@ import {
 	DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import { Button } from './ui/button';
-import { CheckCircle, MoreHorizontal, XCircle, Trash2, Loader2, PauseCircle } from 'lucide-react';
+import { CheckCircle, MoreHorizontal, XCircle, Trash2, Loader2, PauseCircle, PlayCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { updateRequestStatusAction, deleteRequestAction, paralyzeRequestAction } from '@/lib/actions';
+import { updateRequestStatusAction, deleteRequestAction, paralyzeRequestAction, reactivateRequestAction } from '@/lib/actions';
 import { type Request, type RequestStatus } from '@/lib/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -27,10 +27,12 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
 	const [isUpdating, setIsUpdating] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [isParalyzing, setIsParalyzing] = useState(false);
+	const [isReactivating, setIsReactivating] = useState(false);
 
 	const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [paralyzeDialogOpen, setParalyzeDialogOpen] = useState(false);
+	const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false);
 
 	const [actionToConfirm, setActionToConfirm] = useState<'Aprobado' | 'Rechazado' | null>(null);
 
@@ -141,12 +143,51 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
 		}
 	}
 
+	const handleReactivate = async () => {
+		if (!request?.id) {
+			toast({
+				variant: 'destructive',
+				title: 'Error',
+				description: 'ID de solicitud no válido.',
+			});
+			return;
+		}
+
+		setIsReactivating(true);
+		try {
+			const result = await reactivateRequestAction({ id: request.id });
+
+			if (result.success) {
+				toast({ title: 'Éxito', description: result.message });
+				setReactivateDialogOpen(false);
+				if (onActionComplete) {
+					onActionComplete();
+				}
+			} else {
+				toast({
+					variant: 'destructive',
+					title: 'Error al reactivar',
+					description: result.message || 'No se pudo reactivar la solicitud.',
+				});
+			}
+		} catch (error: any) {
+			toast({
+				variant: 'destructive',
+				title: 'Error inesperado',
+				description: error.message || 'Ocurrió un error inesperado al reactivar la solicitud.',
+			});
+		} finally {
+			setIsReactivating(false);
+		}
+	}
+
 	const openStatusConfirmation = (status: 'Aprobado' | 'Rechazado') => {
 		setActionToConfirm(status);
 		setStatusChangeDialogOpen(true);
 	}
 
 	const canBeParalyzed = request.isContinuous && request.status === 'Aprobado' && !request.endDate;
+	const canBeReactivated = request.isContinuous && request.status === 'Aprobado' && !!request.endDate;
 
 	return (
 		<>
@@ -176,12 +217,18 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
 							<span>Paralizar Servicio</span>
 						</DropdownMenuItem>
 					)}
+					{canBeReactivated && (
+						<DropdownMenuItem onSelect={() => setReactivateDialogOpen(true)}>
+							<PlayCircle className="mr-2 h-4 w-4 text-green-500" />
+							<span>Reactivar Servicio</span>
+						</DropdownMenuItem>
+					)}
 					{request.endDate && (
 						<DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
 							Finalizado el {format(request.endDate, 'PPP', { locale: es })}
 						</DropdownMenuLabel>
 					)}
-					{(request.status !== 'Pendiente' || canBeParalyzed || request.endDate) && <DropdownMenuSeparator />}
+					{(request.status !== 'Pendiente' || canBeParalyzed || canBeReactivated || request.endDate) && <DropdownMenuSeparator />}
 					<DropdownMenuItem onSelect={() => setDeleteDialogOpen(true)} className="text-red-500">
 						<Trash2 className="mr-2 h-4 w-4" />
 						<span>Eliminar</span>
@@ -262,6 +309,31 @@ export function RequestActions({ request, onActionComplete }: RequestActionsProp
 								disabled={isParalyzing}
 							>
 								{isParalyzing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Paralizando...</> : 'Sí, paralizar'}
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Reactivate Confirmation Dialog */}
+			{reactivateDialogOpen && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center">
+					<div className="fixed inset-0 bg-black/50" onClick={() => setReactivateDialogOpen(false)} />
+					<div className="relative bg-background p-6 rounded-lg shadow-lg max-w-md w-full">
+						<h2 className="text-lg font-semibold mb-2">¿Reactivar servicio continuo?</h2>
+						<p className="text-sm text-muted-foreground mb-4">
+							Esta acción quitará la fecha de finalización del servicio continuo y el precursor volverá a estar activo. ¿Deseas continuar?
+						</p>
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => setReactivateDialogOpen(false)} disabled={isReactivating}>
+								Cancelar
+							</Button>
+							<Button
+								type="button"
+								onClick={handleReactivate}
+								disabled={isReactivating}
+							>
+								{isReactivating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Reactivando...</> : 'Sí, reactivar'}
 							</Button>
 						</div>
 					</div>
