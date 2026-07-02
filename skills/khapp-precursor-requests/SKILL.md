@@ -198,3 +198,4 @@ npm run dev
 - ❌ **Do not** change the month-name list in one place (page, schema, public form) without updating the others.
 - ❌ **Do not** add a server-side read pattern to the page without preserving the live-refresh flow.
 - ❌ **Do not** introduce a `status: 'Pendiente'` → `status: 'Pendiente'` no-op call; the action only accepts `Aprobado` or `Rechazado`.
+- ❌ **Do not** hardcode `request.status === 'Aprobado'` inside `continuousRequests`. The global status filter is already applied via `filteredRequests`; re-applying it inside one tab breaks the counter↔list contract (Pendientes count includes continuous requests, but the continuous tab would hide them). Both tabs must respect the same status filter the user picked.
