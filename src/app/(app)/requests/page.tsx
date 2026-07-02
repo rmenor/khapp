@@ -18,7 +18,7 @@ import { RequestActions } from '@/components/request-actions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Printer, CircleHelp, CircleCheck, CircleX } from 'lucide-react';
+import { Printer, CircleHelp, CircleCheck, CircleX, Megaphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const serializeRequest = (doc: any): Request => {
@@ -209,6 +209,25 @@ export default function RequestsPage() {
         });
     }, [filteredRequests, monthFilter, yearFilter]);
 
+    // Anuncio: solo nombres de aprobados activos (no paralizados),
+    // respetando los filtros de año/mes de la página, ordenados alfabéticamente.
+    const announcementRequests = useMemo(() => {
+        return monthYearFilteredRequests
+            .filter(r => r.status === 'Aprobado' && !r.endDate)
+            .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    }, [monthYearFilteredRequests]);
+
+    const handlePrintAnnouncement = () => {
+        const cleanup = () => {
+            document.body.classList.remove('printing-announcement');
+            window.removeEventListener('afterprint', cleanup);
+        };
+        document.body.classList.add('printing-announcement');
+        window.addEventListener('afterprint', cleanup);
+        // Pequeño delay para que el browser registre la clase antes del diálogo
+        window.setTimeout(() => window.print(), 50);
+    };
+
     const getStatusBadge = (request: Request) => {
         if (request.endDate) {
             return <Badge variant="outline" className="text-orange-600 border-orange-200">Paralizado</Badge>;
@@ -223,6 +242,7 @@ export default function RequestsPage() {
 
     return (
         <div className="flex flex-col w-full">
+            <div className="print-section-full">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4 print:hidden">
                 <h1 className="text-2xl font-bold tracking-tight w-full md:w-auto">Solicitudes de Precursorado</h1>
                 <div className="flex flex-col md:flex-row items-center gap-2 w-full md:w-auto">
@@ -266,6 +286,10 @@ export default function RequestsPage() {
                         <Button variant="outline" onClick={() => window.print()} className="w-full">
                             <Printer className="mr-2 h-4 w-4" />
                             Imprimir
+                        </Button>
+                        <Button variant="outline" onClick={handlePrintAnnouncement} className="w-full">
+                            <Megaphone className="mr-2 h-4 w-4" />
+                            Imprimir anuncio
                         </Button>
                         <AddRequestDialog />
                     </div>
@@ -478,6 +502,28 @@ export default function RequestsPage() {
                     </Card>
                 </TabsContent>
             </Tabs>
+            </div>
+
+            {/* Sección de anuncio: oculta en pantalla, visible solo al imprimir
+                con el botón "Imprimir anuncio" (cuerpo lleva .printing-announcement). */}
+            <div className="print-section-announcement" aria-hidden="true">
+                <div className="p-8">
+                    <h1 className="text-2xl font-bold mb-2">Anuncio de Precursores</h1>
+                    <p className="text-sm text-gray-600 mb-6 capitalize">
+                        {monthFilter !== 'todos' ? `${monthFilter} ` : ''}
+                        {yearFilter !== 'todos' ? yearFilter : new Date().getFullYear()}
+                    </p>
+                    {announcementRequests.length === 0 ? (
+                        <p className="text-gray-500">No hay precursores aprobados para anunciar en el período seleccionado.</p>
+                    ) : (
+                        <ul className="space-y-1 text-base">
+                            {announcementRequests.map(request => (
+                                <li key={request.id}>{request.name}</li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
