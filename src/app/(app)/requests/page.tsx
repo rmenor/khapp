@@ -175,7 +175,7 @@ export default function RequestsPage() {
         const selectedMonth = monthFilter === 'todos' ? currentMonth : monthNameToNumber[monthFilter];
 
         return filteredRequests.filter(request => {
-            if (!request.isContinuous || request.status !== 'Aprobado') return false;
+            if (!request.isContinuous) return false;
             const startDate = new Date(request.requestDate);
             const startYear = startDate.getFullYear();
             const startMonth = startDate.getMonth();
