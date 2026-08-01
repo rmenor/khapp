@@ -94,19 +94,4 @@
   .print\:border-none {
     border: none !important;
   }
-
-  /* Announcement print mode: toggle body.printing-announcement before window.print().
-     Only the .print-section-announcement block is shown; everything else (incl. full tables)
-     is hidden. The class is removed by the page on the afterprint event. */
-  body.printing-announcement .print-section-full {
-    display: none !important;
-  }
-  body.printing-announcement .print-section-announcement {
-    display: block !important;
-  }
-}
-
-/* Default (screen): announcement block is hidden, full content is shown. */
-.print-section-announcement {
-  display: none;
 }

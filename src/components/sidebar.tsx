@@ -17,11 +17,6 @@ const navLinks = [
     label: 'Inicio',
   },
   {
-    href: '/finance',
-    icon: Landmark,
-    label: 'Finanzas',
-  },
-  {
     href: '/requests',
     icon: ClipboardList,
     label: 'Solicitudes',
@@ -45,6 +40,11 @@ const navLinks = [
     href: '/privileges',
     icon: Award,
     label: 'Privilegios',
+  },
+  {
+    href: '/finance',
+    icon: Landmark,
+    label: 'Finanzas',
   },
 ];
 
