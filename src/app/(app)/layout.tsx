@@ -17,11 +17,11 @@ import { usePathname } from 'next/navigation';
 
 const navLinks = [
     { href: '/dashboard', icon: Home, label: 'Inicio' },
-    { href: '/finance', icon: Landmark, label: 'Finanzas' },
     { href: '/requests', icon: ClipboardList, label: 'Solicitudes' },
     { href: '/publishers', icon: Users, label: 'Publicadores' },
     { href: '/groups', icon: Layers, label: 'Grupos' },
     { href: '/privileges', icon: Award, label: 'Privilegios' },
+    { href: '/finance', icon: Landmark, label: 'Finanzas' },
 ];
 
 import { logoutAction } from '@/lib/actions';

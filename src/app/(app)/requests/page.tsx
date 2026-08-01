@@ -18,7 +18,7 @@ import { RequestActions } from '@/components/request-actions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Printer, CircleHelp, CircleCheck, CircleX, Megaphone } from 'lucide-react';
+import { CircleHelp, CircleCheck, CircleX, Megaphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const serializeRequest = (doc: any): Request => {
@@ -218,14 +218,10 @@ export default function RequestsPage() {
     }, [monthYearFilteredRequests]);
 
     const handlePrintAnnouncement = () => {
-        const cleanup = () => {
-            document.body.classList.remove('printing-announcement');
-            window.removeEventListener('afterprint', cleanup);
-        };
-        document.body.classList.add('printing-announcement');
-        window.addEventListener('afterprint', cleanup);
-        // Pequeño delay para que el browser registre la clase antes del diálogo
-        window.setTimeout(() => window.print(), 50);
+        // Único modo de impresión: la sección .print-section-announcement.
+        // El resto de la página lleva print:hidden, así que no hace falta
+        // truco de body.printing-announcement.
+        window.print();
     };
 
     const getStatusBadge = (request: Request) => {
@@ -242,7 +238,6 @@ export default function RequestsPage() {
 
     return (
         <div className="flex flex-col w-full">
-            <div className="print-section-full">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4 print:hidden">
                 <h1 className="text-2xl font-bold tracking-tight w-full md:w-auto">Solicitudes de Precursorado</h1>
                 <div className="flex flex-col md:flex-row items-center gap-2 w-full md:w-auto">
@@ -283,10 +278,6 @@ export default function RequestsPage() {
                         </SelectContent>
                     </Select>
                     <div className="flex gap-2 w-full md:w-auto">
-                        <Button variant="outline" onClick={() => window.print()} className="w-full">
-                            <Printer className="mr-2 h-4 w-4" />
-                            Imprimir
-                        </Button>
                         <Button variant="outline" onClick={handlePrintAnnouncement} className="w-full">
                             <Megaphone className="mr-2 h-4 w-4" />
                             Imprimir anuncio
@@ -329,7 +320,7 @@ export default function RequestsPage() {
                 </Card>
             </div>
 
-            <Tabs defaultValue="continuous" className="w-full">
+            <Tabs defaultValue="continuous" className="w-full print:hidden">
                 <TabsList className="grid w-full md:w-[400px] grid-cols-2">
                     <TabsTrigger value="continuous">
                         Servicio Continuo ({continuousRequests.length})
@@ -502,11 +493,9 @@ export default function RequestsPage() {
                     </Card>
                 </TabsContent>
             </Tabs>
-            </div>
 
-            {/* Sección de anuncio: oculta en pantalla, visible solo al imprimir
-                con el botón "Imprimir anuncio" (cuerpo lleva .printing-announcement). */}
-            <div className="print-section-announcement" aria-hidden="true">
+            {/* Sección de anuncio: oculta en pantalla, visible solo al imprimir. */}
+            <div className="hidden print:block" aria-hidden="true">
                 <div className="p-8">
                     <h1 className="text-2xl font-bold mb-2">Anuncio de Precursores</h1>
                     <p className="text-sm text-gray-600 mb-6 capitalize">
