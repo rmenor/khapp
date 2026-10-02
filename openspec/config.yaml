@@ -1,0 +1,25 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Next.js 16.1.1, React 18, Firebase 10.12, Tailwind CSS
+  Architecture: App Router (with (app) layout), Server Actions, Firestore Database
+  Testing: No test runner detected
+  Style: next lint, tsc --noEmit
+
+rules:
+  proposal:
+    - Define clear schema requirements for Publishers and Groups
+  specs:
+    - Specify user scenarios for Publisher management (CRUD)
+    - Specify user scenarios for Group management (CRUD, member assignment)
+  design:
+    - Design Firestore data structures (publishers, groups collections)
+    - Document Next.js Server Actions and UI layout
+  tasks:
+    - Break down tasks into model additions, server actions, navigation, and frontend page layouts
+  apply:
+    - Follow clean Next.js patterns, use shadcn/ui components, and zod validation
+    - strict_tdd: false
+  verify:
+    - Manual verification via browser page testing
+    - Run linter and type-checker

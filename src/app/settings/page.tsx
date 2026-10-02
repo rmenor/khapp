@@ -10,7 +10,7 @@ import { AppLogo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { restoreTransactionsAction, updateCongregationAction, getCongregationAction } from '@/lib/actions';
+import { restoreTransactionsAction, restorePublishersAction, restoreGroupsAction, restorePrivilegesAction, updateCongregationAction, getCongregationAction } from '@/lib/actions';
 import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
@@ -44,10 +44,27 @@ export default function SettingsPage() {
     const handleBackup = async () => {
         setIsBackingUp(true);
         try {
-            const querySnapshot = await getDocs(collection(db, 'transactions'));
-            const transactions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const transactionsSnap = await getDocs(collection(db, 'transactions'));
+            const transactions = transactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-            const dataStr = JSON.stringify(transactions, null, 2);
+            const publishersSnap = await getDocs(collection(db, 'publishers'));
+            const publishers = publishersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            const groupsSnap = await getDocs(collection(db, 'groups'));
+            const groups = groupsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            const privilegesSnap = await getDocs(collection(db, 'privileges'));
+            const privileges = privilegesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            const backupData = {
+                version: 2,
+                transactions,
+                publishers,
+                groups,
+                privileges
+            };
+
+            const dataStr = JSON.stringify(backupData, null, 2);
             const dataBlob = new Blob([dataStr], { type: 'application/json' });
             const url = window.URL.createObjectURL(dataBlob);
             const link = document.createElement('a');
@@ -96,24 +113,57 @@ export default function SettingsPage() {
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
-                const content = event.target?.result as string;
-                const transactions = JSON.parse(content);
+                const contentStr = event.target?.result as string;
+                const parsedData = JSON.parse(contentStr);
 
-                // Basic validation
-                if (!Array.isArray(transactions)) {
-                    throw new Error('El archivo de copia de seguridad no es válido.');
+                let restoreSuccess = false;
+                let message = '';
+
+                if (Array.isArray(parsedData)) {
+                    // Formato antiguo: solo transacciones
+                    const result = await restoreTransactionsAction(parsedData);
+                    restoreSuccess = result.success;
+                    message = result.message || '';
+                } else if (typeof parsedData === 'object' && parsedData !== null) {
+                    // Nuevo formato: objeto con colecciones
+                    let txSuccess = true;
+                    let pubSuccess = true;
+                    let grpSuccess = true;
+                    let privSuccess = true;
+
+                    if (Array.isArray(parsedData.transactions) && parsedData.transactions.length > 0) {
+                        const res = await restoreTransactionsAction(parsedData.transactions);
+                        txSuccess = res.success;
+                    }
+                    if (Array.isArray(parsedData.publishers) && parsedData.publishers.length > 0) {
+                        const res = await restorePublishersAction(parsedData.publishers);
+                        pubSuccess = res.success;
+                    }
+                    if (Array.isArray(parsedData.groups) && parsedData.groups.length > 0) {
+                        const res = await restoreGroupsAction(parsedData.groups);
+                        grpSuccess = res.success;
+                    }
+                    if (Array.isArray(parsedData.privileges) && parsedData.privileges.length > 0) {
+                        const res = await restorePrivilegesAction(parsedData.privileges);
+                        privSuccess = res.success;
+                    }
+
+                    restoreSuccess = txSuccess && pubSuccess && grpSuccess && privSuccess;
+                    message = restoreSuccess 
+                        ? 'Datos restaurados correctamente (transacciones, publicadores, grupos y privilegios).'
+                        : 'Algunos datos no pudieron restaurarse completamente.';
+                } else {
+                    throw new Error('El archivo de copia de seguridad no tiene un formato válido.');
                 }
-                
-                const result = await restoreTransactionsAction(transactions);
 
-                if (result.success) {
+                if (restoreSuccess) {
                     toast({
                         title: 'Éxito',
-                        description: 'Datos restaurados correctamente. La página se recargará.',
+                        description: `${message} La página se recargará.`,
                     });
-                    setTimeout(() => window.location.assign('/dashboard'), 2000);
+                    setTimeout(() => window.location.assign('/dashboard'), 2500);
                 } else {
-                    throw new Error(result.message || 'Error desconocido al restaurar.');
+                    throw new Error(message || 'Error desconocido al restaurar.');
                 }
 
             } catch (error: any) {

@@ -9,7 +9,7 @@ import { Sidebar } from '@/components/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Home, Landmark, ClipboardList, Settings, LogOut, PanelLeft } from 'lucide-react';
+import { Home, Landmark, ClipboardList, Settings, LogOut, PanelLeft, Users, Layers, Award } from 'lucide-react';
 import { AppLogo } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
@@ -17,9 +17,14 @@ import { usePathname } from 'next/navigation';
 
 const navLinks = [
     { href: '/dashboard', icon: Home, label: 'Inicio' },
-    { href: '/finance', icon: Landmark, label: 'Finanzas' },
     { href: '/requests', icon: ClipboardList, label: 'Solicitudes' },
+    { href: '/publishers', icon: Users, label: 'Publicadores' },
+    { href: '/groups', icon: Layers, label: 'Grupos' },
+    { href: '/privileges', icon: Award, label: 'Privilegios' },
+    { href: '/finance', icon: Landmark, label: 'Finanzas' },
 ];
+
+import { logoutAction } from '@/lib/actions';
 
 export default function AppLayout({
     children,
@@ -28,41 +33,12 @@ export default function AppLayout({
 }) {
     const router = useRouter();
     const pathname = usePathname();
-    const [isClient, setIsClient] = useState(false);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-    useEffect(() => {
-        setIsClient(true);
-        const authStatus = localStorage.getItem('isAuthenticated') === 'true';
-        setIsAuthenticated(authStatus);
-        if (!authStatus) {
-            router.replace('/login');
-        }
-    }, [router]);
-
-    const handleLogout = () => {
-        localStorage.removeItem('isAuthenticated');
+    const handleLogout = async () => {
+        await logoutAction();
         router.push('/login');
+        router.refresh();
     };
-    
-    if (!isClient || !isAuthenticated) {
-        return (
-            <div className="flex flex-col min-h-screen">
-                <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6 z-10">
-                    <Skeleton className="h-8 w-8 rounded-full" />
-                    <Skeleton className="h-6 w-32" />
-                    <div className="ml-auto flex items-center gap-4">
-                        <Skeleton className="h-10 w-24" />
-                    </div>
-                </header>
-                <main className="flex flex-1 flex-col items-center justify-center gap-4 p-4 md:gap-8 md:p-8">
-                    <div className="text-center">
-                        <p className="text-lg text-muted-foreground">Verificando autenticación y redirigiendo...</p>
-                    </div>
-                </main>
-            </div>
-        );
-    }
 
     return (
         <div className="flex min-h-screen w-full flex-col bg-muted/40">

@@ -42,15 +42,18 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/button';
 
-import type { Transaction } from '@/lib/types';
+import type { Transaction, Resolution } from '@/lib/types';
 import { AddTransactionDialog } from './add-transaction-dialog';
 import { RecentTransactions } from './recent-transactions';
 import { MonthlyOverviewChart, IncomeBreakdownChart } from './charts';
 import { AppLogo } from './icons';
 
+import { ManageResolutionsDialog } from './manage-resolutions-dialog';
+
 interface DashboardClientProps {
   transactions: Transaction[];
   allTransactions: Transaction[];
+  resolutions: Resolution[];
   totalIncome: number;
   totalExpenses: number;
   balance: number;
@@ -70,6 +73,7 @@ interface DashboardClientProps {
 export default function DashboardClient({
   transactions,
   allTransactions,
+  resolutions,
   totalIncome,
   totalExpenses,
   balance,
@@ -95,7 +99,7 @@ export default function DashboardClient({
       currency: 'EUR',
     }).format(amount);
   };
-  
+
   const handleFilterChange = (type: 'year' | 'month', value: string) => {
     const current = new URLSearchParams(Array.from(searchParams.entries()));
     current.set(type, value);
@@ -110,7 +114,7 @@ export default function DashboardClient({
     { value: 3, label: 'Marzo' },
     { value: 4, label: 'Abril' },
     { value: 5, label: 'Mayo' },
-    { value: 6, 'label': 'Junio' },
+    { value: 6, label: 'Junio' },
     { value: 7, label: 'Julio' },
     { value: 8, label: 'Agosto' },
     { value: 9, label: 'Septiembre' },
@@ -124,31 +128,32 @@ export default function DashboardClient({
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold tracking-tight">Panel de Finanzas</h1>
         <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
-            <div className='flex gap-2 w-full'>
-              <Select value={String(selectedYear)} onValueChange={(value) => handleFilterChange('year', value)}>
-                <SelectTrigger className="w-full sm:w-[120px]">
-                  <SelectValue placeholder="Año" />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map(year => (
-                    <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={String(selectedMonth)} onValueChange={(value) => handleFilterChange('month', value)}>
-                <SelectTrigger className="w-full sm:w-[140px]">
-                  <SelectValue placeholder="Mes" />
-                </SelectTrigger>
-                <SelectContent>
-                  {months.map(month => (
-                    <SelectItem key={month.value} value={String(month.value)}>{month.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full sm:w-auto">
-              <AddTransactionDialog pendingBranchTransactions={pendingBranchTransactions} />
-            </div>
+          <div className='flex gap-2 w-full'>
+            <Select value={String(selectedYear)} onValueChange={(value) => handleFilterChange('year', value)}>
+              <SelectTrigger className="w-full sm:w-[120px]">
+                <SelectValue placeholder="Año" />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map(year => (
+                  <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={String(selectedMonth)} onValueChange={(value) => handleFilterChange('month', value)}>
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <SelectValue placeholder="Mes" />
+              </SelectTrigger>
+              <SelectContent>
+                {months.map(month => (
+                  <SelectItem key={month.value} value={String(month.value)}>{month.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full sm:w-auto flex gap-2">
+            <ManageResolutionsDialog resolutions={resolutions} />
+            <AddTransactionDialog pendingBranchTransactions={pendingBranchTransactions} />
+          </div>
         </div>
       </div>
       <Tabs defaultValue="overview" className="w-full space-y-4">
@@ -190,7 +195,7 @@ export default function DashboardClient({
                 <div className="text-2xl font-bold">{formatCurrency(balance)}</div>
               </CardContent>
             </Card>
-             <Card>
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
                   Total en Cuenta
@@ -201,7 +206,7 @@ export default function DashboardClient({
                 <div className="text-2xl font-bold">
                   {formatCurrency(totalBalance)}
                 </div>
-                 <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Saldo total acumulado
                 </p>
               </CardContent>
@@ -217,7 +222,7 @@ export default function DashboardClient({
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(congregationIncome)}</div>
-                 <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Donaciones del mes
                 </p>
               </CardContent>
@@ -231,7 +236,7 @@ export default function DashboardClient({
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(worldwideWorkIncome)}</div>
-                 <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Donaciones del mes
                 </p>
               </CardContent>
@@ -245,7 +250,7 @@ export default function DashboardClient({
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(renovationIncome)}</div>
-                 <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Donaciones del mes
                 </p>
               </CardContent>
@@ -290,12 +295,12 @@ export default function DashboardClient({
             </Card>
           </div>
         </TabsContent>
-         <TabsContent value="transactions" className="space-y-4">
-              <RecentTransactions transactions={transactions} title="Transacciones del Mes" description="Una lista de todas tus transacciones para el período seleccionado."/>
-         </TabsContent>
-         <TabsContent value="all" className="space-y-4">
-              <RecentTransactions transactions={allTransactions} title="Todas las Transacciones" description="Una lista de todas tus transacciones históricas."/>
-         </TabsContent>
+        <TabsContent value="transactions" className="space-y-4">
+          <RecentTransactions transactions={transactions} title="Transacciones del Mes" description="Una lista de todas tus transacciones para el período seleccionado." />
+        </TabsContent>
+        <TabsContent value="all" className="space-y-4">
+          <RecentTransactions transactions={allTransactions} title="Todas las Transacciones" description="Una lista de todas tus transacciones históricas." />
+        </TabsContent>
       </Tabs>
     </div>
   );

@@ -14,8 +14,62 @@ import {
   deleteDoc,
   getDoc,
   setDoc,
+  getDocs,
+  deleteField,
 } from 'firebase/firestore';
 import type { RequestStatus, TransactionStatus } from './types';
+import { cookies } from 'next/headers';
+import { signSession, verifySession } from './auth-session';
+
+const LoginSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
+export async function loginAction(data: z.infer<typeof LoginSchema>) {
+  const validatedFields = LoginSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Usuario y contraseña son obligatorios.' };
+  }
+
+  const { username, password } = validatedFields.data;
+  const adminUser = process.env.ADMIN_USERNAME || 'admin_prado';
+  const adminPass = process.env.ADMIN_PASSWORD || 'LucasMateo1914';
+
+  if (username === adminUser && password === adminPass) {
+    const expireTime = String(Date.now() + 1000 * 60 * 60 * 24);
+    const sessionToken = await signSession(expireTime);
+    
+    const cookieStore = await cookies();
+    cookieStore.set('__session', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24,
+      path: '/',
+    });
+
+    return { success: true, message: 'Inicio de sesión correcto.' };
+  }
+
+  return { success: false, message: 'Usuario o contraseña incorrectos.' };
+}
+
+export async function logoutAction() {
+  const cookieStore = await cookies();
+  cookieStore.delete('__session');
+  return { success: true, message: 'Sesión cerrada correctamente.' };
+}
+
+export async function verifySessionOrThrow() {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get('__session')?.value;
+  const isValid = await verifySession(sessionCookie);
+  if (!isValid) {
+    throw new Error('No autorizado.');
+  }
+}
+
 
 const IncomeSchema = z.object({
   amount: z.coerce.number().positive({ message: 'La cantidad debe ser un número positivo.' }),
@@ -105,6 +159,10 @@ const ParalyzeRequestSchema = z.object({
   id: z.string().min(1, { message: 'El ID de la solicitud es obligatorio.' }),
 });
 
+const ReactivateRequestSchema = z.object({
+  id: z.string().min(1, { message: 'El ID de la solicitud es obligatorio.' }),
+});
+
 const CongregationSchema = z.object({
   name: z.string().min(1, { message: 'El nombre de la congregación es obligatorio.' }),
 });
@@ -122,6 +180,7 @@ export async function addIncomeAction(data: z.infer<typeof IncomeSchema>) {
   }
 
   try {
+    await verifySessionOrThrow();
     const { amount, date, description, category } = validatedFields.data;
 
     let status: TransactionStatus;
@@ -167,6 +226,7 @@ export async function addBatchIncomeAction(data: z.infer<typeof BatchIncomeSchem
   }
 
   try {
+    await verifySessionOrThrow();
     const { date, incomes } = validatedFields.data;
     const batch = writeBatch(db);
 
@@ -209,6 +269,7 @@ export async function addExpenseAction(data: z.infer<typeof ExpenseSchema>) {
   }
 
   try {
+    await verifySessionOrThrow();
     const { amount, date, description } = validatedFields.data;
     await addDoc(collection(db, 'transactions'), {
       type: 'expense',
@@ -236,6 +297,7 @@ export async function addBranchTransferAction(data: z.infer<typeof BranchTransfe
   }
 
   try {
+    await verifySessionOrThrow();
     const { amount, date, description, transactionIds } = validatedFields.data;
 
     const batch = writeBatch(db);
@@ -275,6 +337,7 @@ export async function updateTransactionAction(data: z.infer<typeof UpdateTransac
   }
 
   try {
+    await verifySessionOrThrow();
     const { id, ...rest } = validatedFields.data;
 
     const transactionRef = doc(db, 'transactions', id);
@@ -318,6 +381,7 @@ export async function deleteTransactionAction(data: z.infer<typeof DeleteTransac
   }
 
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
     await deleteDoc(doc(db, 'transactions', id));
     revalidatePath('/finance');
@@ -336,6 +400,7 @@ export async function restoreTransactionsAction(transactions: unknown[]) {
   const batch = writeBatch(db);
 
   try {
+    await verifySessionOrThrow();
     for (const transactionData of transactions) {
       const { id, ...dataToValidate } = transactionData as any;
 
@@ -410,6 +475,7 @@ export async function updateRequestStatusAction(data: z.infer<typeof UpdateReque
   }
 
   try {
+    await verifySessionOrThrow();
     const { id, status } = validatedFields.data;
     const requestRef = doc(db, 'requests', id);
     await updateDoc(requestRef, { status });
@@ -423,29 +489,79 @@ export async function updateRequestStatusAction(data: z.infer<typeof UpdateReque
 }
 
 export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSchema>) {
+  console.log('=== DELETE REQUEST ACTION CALLED ===');
+  console.log('Received data:', data);
+
   const validatedFields = DeleteRequestSchema.safeParse(data);
 
   if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.' };
+    console.error('Validation error in deleteRequestAction:', validatedFields.error.flatten());
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
   }
 
   if (!db) {
+    console.error('Database not available in deleteRequestAction');
     return { success: false, message: 'La base de datos no está disponible.' };
   }
 
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
-    await deleteDoc(doc(db, 'requests', id));
+
+    if (!id) {
+      console.error('No ID provided to deleteRequestAction');
+      return { success: false, message: 'ID de solicitud no proporcionado.' };
+    }
+
+    console.log('Attempting to delete request with ID:', id);
+    const docRef = doc(db, 'requests', id);
+
+    // Delete directly - Firestore handles offline persistence automatically
+    await deleteDoc(docRef);
+    console.log('Successfully deleted request:', id);
+
     revalidatePath('/requests');
     return { success: true, message: 'Solicitud eliminada correctamente.' };
   } catch (e: any) {
+    console.error('Error in deleteRequestAction:', e);
     const message = e instanceof Error ? e.message : 'Ocurrió un error desconocido.';
     return { success: false, message: `Error al eliminar la solicitud: ${message}` };
   }
 }
 
 export async function paralyzeRequestAction(data: z.infer<typeof ParalyzeRequestSchema>) {
+  console.log('=== server: paralyzeRequestAction CALLED ===');
+  console.log('Server received data:', data);
   const validatedFields = ParalyzeRequestSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    console.error('Server: Validation failed:', validatedFields.error.flatten().fieldErrors);
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+
+  if (!db) {
+    console.error('Server: DB not available');
+    return { success: false, message: 'La base de datos no está disponible.' };
+  }
+
+  try {
+    await verifySessionOrThrow();
+    const { id } = validatedFields.data;
+    console.log('Server: Updating document requests/' + id + ' with endDate');
+    const requestRef = doc(db, 'requests', id);
+    await updateDoc(requestRef, { endDate: Timestamp.fromDate(new Date()) });
+    console.log('Server: Document successfully updated');
+
+    revalidatePath('/requests');
+    return { success: true, message: 'El servicio continuo ha sido paralizado.' };
+  } catch (e: any) {
+    console.error('Server: Error in updateDoc:', e);
+    return { success: false, message: e.message || 'Error al paralizar la solicitud.' };
+  }
+}
+
+export async function reactivateRequestAction(data: z.infer<typeof ReactivateRequestSchema>) {
+  const validatedFields = ReactivateRequestSchema.safeParse(data);
 
   if (!validatedFields.success) {
     return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
@@ -456,14 +572,15 @@ export async function paralyzeRequestAction(data: z.infer<typeof ParalyzeRequest
   }
 
   try {
+    await verifySessionOrThrow();
     const { id } = validatedFields.data;
     const requestRef = doc(db, 'requests', id);
-    await updateDoc(requestRef, { endDate: Timestamp.fromDate(new Date()) });
+    await updateDoc(requestRef, { endDate: deleteField() });
 
     revalidatePath('/requests');
-    return { success: true, message: 'El servicio continuo ha sido paralizado.' };
+    return { success: true, message: 'El servicio continuo ha sido reactivado.' };
   } catch (e: any) {
-    return { success: false, message: e.message || 'Error al paralizar la solicitud.' };
+    return { success: false, message: e.message || 'Error al reactivar la solicitud.' };
   }
 }
 
@@ -498,6 +615,7 @@ export async function updateCongregationAction(data: z.infer<typeof Congregation
   }
 
   try {
+    await verifySessionOrThrow();
     const { name } = validatedFields.data;
     const docRef = doc(db, 'congregations', 'main');
     await setDoc(docRef, { name });
@@ -506,5 +624,553 @@ export async function updateCongregationAction(data: z.infer<typeof Congregation
     return { success: true, message: 'Nombre de la congregación actualizado correctamente.' };
   } catch (e: any) {
     return { success: false, message: e.message || 'Error al actualizar la congregación.' };
+  }
+}
+
+const ResolutionSchema = z.object({
+  description: z.string().min(1, { message: 'La descripción es obligatoria.' }),
+  amount: z.coerce.number().positive({ message: 'La cantidad debe ser un número positivo.' }),
+  startDate: z.string().min(1, { message: 'La fecha es obligatoria.' }),
+});
+
+const DeleteResolutionSchema = z.object({
+  id: z.string().min(1, { message: 'El ID es obligatorio.' }),
+});
+
+export async function addResolutionAction(data: z.infer<typeof ResolutionSchema>) {
+  const validatedFields = ResolutionSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+
+  if (!db) {
+    return { success: false, message: 'La base de datos no está disponible.' };
+  }
+
+  try {
+    await verifySessionOrThrow();
+    const { amount, startDate, description } = validatedFields.data;
+
+    await addDoc(collection(db, 'resolutions'), {
+      amount,
+      startDate: Timestamp.fromDate(new Date(startDate)),
+      description,
+      isActive: true,
+    });
+    revalidatePath('/finance');
+    return { success: true, message: 'Resolución añadida correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir la resolución.' };
+  }
+}
+
+export async function deleteResolutionAction(data: z.infer<typeof DeleteResolutionSchema>) {
+  const validatedFields = DeleteResolutionSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.' };
+  }
+
+  if (!db) {
+    return { success: false, message: 'La base de datos no está disponible.' };
+  }
+
+  try {
+    await verifySessionOrThrow();
+    const { id } = validatedFields.data;
+    await deleteDoc(doc(db, 'resolutions', id));
+    revalidatePath('/finance');
+    return { success: true, message: 'Resolución eliminada correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar la resolución.' };
+  }
+}
+
+// Annual Assignments
+
+const PioneerTalkSchema = z.object({
+  year: z.coerce.number(),
+  date: z.string().min(1),
+  speaker1: z.string().min(1),
+  speaker2: z.string().min(1),
+  openingPrayer: z.string().min(1),
+  closingPrayer: z.string().min(1),
+});
+
+const SpecialTalkSchema = z.object({
+  year: z.coerce.number(),
+  president: z.string().min(1),
+  speaker: z.string().min(1),
+  closingPrayer: z.string().min(1),
+  auxiliarySpeaker: z.string().min(1),
+  date: z.string().min(1),
+});
+
+const MemorialSchema = z.object({
+  year: z.coerce.number(),
+  president: z.string().min(1),
+  openingPrayer: z.string().min(1),
+  speaker: z.string().min(1),
+  breadPrayer: z.string().min(1),
+  winePrayer: z.string().min(1),
+  date: z.string().min(1),
+});
+
+export async function addPioneerTalkAction(data: z.infer<typeof PioneerTalkSchema>) {
+  const validatedFields = PioneerTalkSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { date, ...rest } = validatedFields.data;
+    await addDoc(collection(db, 'pioneer_talks'), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Discurso con los precursores añadido.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el discurso.' };
+  }
+}
+
+export async function addSpecialTalkAction(data: z.infer<typeof SpecialTalkSchema>) {
+  const validatedFields = SpecialTalkSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { date, ...rest } = validatedFields.data;
+    await addDoc(collection(db, 'special_talks'), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Discurso especial añadido.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el discurso.' };
+  }
+}
+
+export async function addMemorialAction(data: z.infer<typeof MemorialSchema>) {
+  const validatedFields = MemorialSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { date, ...rest } = validatedFields.data;
+    await addDoc(collection(db, 'memorials'), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Conmemoración añadida.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir la conmemoración.' };
+  }
+}
+
+export async function updatePioneerTalkAction(id: string, data: z.infer<typeof PioneerTalkSchema>) {
+  const validatedFields = PioneerTalkSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { date, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'pioneer_talks', id), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Discurso con los precursores actualizado.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el discurso.' };
+  }
+}
+
+export async function updateSpecialTalkAction(id: string, data: z.infer<typeof SpecialTalkSchema>) {
+  const validatedFields = SpecialTalkSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { date, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'special_talks', id), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Discurso especial actualizado.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el discurso.' };
+  }
+}
+
+export async function updateMemorialAction(id: string, data: z.infer<typeof MemorialSchema>) {
+  const validatedFields = MemorialSchema.safeParse(data);
+  if (!validatedFields.success) return { success: false, message: 'Datos inválidos.' };
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { date, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'memorials', id), {
+      ...rest,
+      date: Timestamp.fromDate(new Date(date)),
+    });
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Conmemoración actualizada.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar la conmemoración.' };
+  }
+}
+
+export async function deleteAnnualAssignmentAction(id: string, type: 'pioneer_talks' | 'special_talks' | 'memorials') {
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    await deleteDoc(doc(db, type, id));
+    revalidatePath('/annual-assignments');
+    return { success: true, message: 'Registro eliminado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar el registro.' };
+  }
+}
+
+// ==========================================
+// PUBLISHERS, GROUPS AND PRIVILEGES SCHEMAS
+// ==========================================
+
+const PublisherSchema = z.object({
+  name: z.string().min(2, { message: 'El nombre debe tener al menos 2 caracteres.' }),
+});
+
+const UpdatePublisherSchema = PublisherSchema.extend({
+  id: z.string().min(1),
+});
+
+const DeletePublisherSchema = z.object({
+  id: z.string().min(1),
+});
+
+const GroupSchema = z.object({
+  name: z.string().min(2, { message: 'El nombre del grupo debe tener al menos 2 caracteres.' }),
+  superintendentId: z.string().optional().nullable(),
+  auxiliaryId: z.string().optional().nullable(),
+  publisherIds: z.array(z.string()).default([]),
+});
+
+const UpdateGroupSchema = GroupSchema.extend({
+  id: z.string().min(1),
+});
+
+const DeleteGroupSchema = z.object({
+  id: z.string().min(1),
+});
+
+const PrivilegeSchema = z.object({
+  name: z.string().min(2, { message: 'El nombre del privilegio debe tener al menos 2 caracteres.' }),
+  publisherIds: z.array(z.string()).default([]),
+});
+
+const UpdatePrivilegeSchema = PrivilegeSchema.extend({
+  id: z.string().min(1),
+});
+
+const DeletePrivilegeSchema = z.object({
+  id: z.string().min(1),
+});
+
+// ==========================================
+// ACTIONS FOR PUBLISHERS
+// ==========================================
+
+export async function addPublisherAction(data: z.infer<typeof PublisherSchema>) {
+  const validatedFields = PublisherSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    await addDoc(collection(db, 'publishers'), validatedFields.data);
+    revalidatePath('/publishers');
+    revalidatePath('/groups');
+    revalidatePath('/privileges');
+    return { success: true, message: 'Publicador añadido correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el publicador.' };
+  }
+}
+
+export async function updatePublisherAction(data: z.infer<typeof UpdatePublisherSchema>) {
+  const validatedFields = UpdatePublisherSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { id, name } = validatedFields.data;
+    await updateDoc(doc(db, 'publishers', id), { name });
+    revalidatePath('/publishers');
+    revalidatePath('/groups');
+    revalidatePath('/privileges');
+    return { success: true, message: 'Publicador actualizado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el publicador.' };
+  }
+}
+
+export async function deletePublisherAction(data: z.infer<typeof DeletePublisherSchema>) {
+  const validatedFields = DeletePublisherSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.' };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { id } = validatedFields.data;
+
+    const batch = writeBatch(db);
+
+    // 1. Delete publisher document
+    batch.delete(doc(db, 'publishers', id));
+
+    // 2. Fetch all groups and remove publisher from superintendent, auxiliary and member list
+    const groupsCol = collection(db, 'groups');
+    const groupsSnap = await getDocs(groupsCol);
+    groupsSnap.docs.forEach((groupDoc) => {
+      const groupData = groupDoc.data();
+      const publisherIds = groupData.publisherIds || [];
+      const isSuper = groupData.superintendentId === id;
+      const isAux = groupData.auxiliaryId === id;
+      const isMember = publisherIds.includes(id);
+
+      if (isSuper || isAux || isMember) {
+        const updateData: any = {};
+        if (isSuper) updateData.superintendentId = null;
+        if (isAux) updateData.auxiliaryId = null;
+        if (isMember) {
+          updateData.publisherIds = publisherIds.filter((pubId: string) => pubId !== id);
+        }
+        batch.update(doc(db, 'groups', groupDoc.id), updateData);
+      }
+    });
+
+    // 3. Fetch all privileges and remove publisher from member list
+    const privilegesCol = collection(db, 'privileges');
+    const privilegesSnap = await getDocs(privilegesCol);
+    privilegesSnap.docs.forEach((privDoc) => {
+      const privData = privDoc.data();
+      const publisherIds = privData.publisherIds || [];
+      const isMember = publisherIds.includes(id);
+
+      if (isMember) {
+        batch.update(doc(db, 'privileges', privDoc.id), {
+          publisherIds: publisherIds.filter((pubId: string) => pubId !== id),
+        });
+      }
+    });
+
+    // Commit all updates atomically
+    await batch.commit();
+
+    revalidatePath('/publishers');
+    revalidatePath('/groups');
+    revalidatePath('/privileges');
+    return { success: true, message: 'Publicador y todas sus referencias en grupos/privilegios eliminados correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar el publicador.' };
+  }
+}
+
+// ==========================================
+// ACTIONS FOR GROUPS
+// ==========================================
+
+export async function addGroupAction(data: z.infer<typeof GroupSchema>) {
+  const validatedFields = GroupSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    await addDoc(collection(db, 'groups'), validatedFields.data);
+    revalidatePath('/groups');
+    return { success: true, message: 'Grupo añadido correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el grupo.' };
+  }
+}
+
+export async function updateGroupAction(data: z.infer<typeof UpdateGroupSchema>) {
+  const validatedFields = UpdateGroupSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { id, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'groups', id), rest);
+    revalidatePath('/groups');
+    return { success: true, message: 'Grupo actualizado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el grupo.' };
+  }
+}
+
+export async function deleteGroupAction(data: z.infer<typeof DeleteGroupSchema>) {
+  const validatedFields = DeleteGroupSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.' };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { id } = validatedFields.data;
+    await deleteDoc(doc(db, 'groups', id));
+    revalidatePath('/groups');
+    return { success: true, message: 'Grupo eliminado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar el grupo.' };
+  }
+}
+
+// ==========================================
+// ACTIONS FOR PRIVILEGES
+// ==========================================
+
+export async function addPrivilegeAction(data: z.infer<typeof PrivilegeSchema>) {
+  const validatedFields = PrivilegeSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    await addDoc(collection(db, 'privileges'), validatedFields.data);
+    revalidatePath('/privileges');
+    return { success: true, message: 'Privilegio añadido correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al añadir el privilegio.' };
+  }
+}
+
+export async function updatePrivilegeAction(data: z.infer<typeof UpdatePrivilegeSchema>) {
+  const validatedFields = UpdatePrivilegeSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { id, ...rest } = validatedFields.data;
+    await updateDoc(doc(db, 'privileges', id), rest);
+    revalidatePath('/privileges');
+    return { success: true, message: 'Privilegio actualizado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al actualizar el privilegio.' };
+  }
+}
+
+export async function deletePrivilegeAction(data: z.infer<typeof DeletePrivilegeSchema>) {
+  const validatedFields = DeletePrivilegeSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: 'Datos inválidos.' };
+  }
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  try {
+    await verifySessionOrThrow();
+    const { id } = validatedFields.data;
+    await deleteDoc(doc(db, 'privileges', id));
+    revalidatePath('/privileges');
+    return { success: true, message: 'Privilegio eliminado correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al eliminar el privilegio.' };
+  }
+}
+
+// ==========================================
+// RESTORE SCHEMAS & ACTIONS FOR NEW ENTITIES
+// ==========================================
+
+const RestorePublisherSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+const RestoreGroupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  superintendentId: z.string().optional().nullable(),
+  auxiliaryId: z.string().optional().nullable(),
+  publisherIds: z.array(z.string()).default([]),
+});
+
+const RestorePrivilegeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  publisherIds: z.array(z.string()).default([]),
+});
+
+export async function restorePublishersAction(publishers: unknown[]) {
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  const batch = writeBatch(db);
+  try {
+    await verifySessionOrThrow();
+    for (const item of publishers) {
+      const validated = RestorePublisherSchema.safeParse(item);
+      if (!validated.success) continue;
+      const { id, ...data } = validated.data;
+      batch.set(doc(db, 'publishers', id), data);
+    }
+    await batch.commit();
+    revalidatePath('/publishers');
+    revalidatePath('/groups');
+    revalidatePath('/privileges');
+    return { success: true, message: 'Publicadores restaurados correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al restaurar publicadores.' };
+  }
+}
+
+export async function restoreGroupsAction(groups: unknown[]) {
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  const batch = writeBatch(db);
+  try {
+    await verifySessionOrThrow();
+    for (const item of groups) {
+      const validated = RestoreGroupSchema.safeParse(item);
+      if (!validated.success) continue;
+      const { id, ...data } = validated.data;
+      batch.set(doc(db, 'groups', id), data);
+    }
+    await batch.commit();
+    revalidatePath('/groups');
+    return { success: true, message: 'Grupos restaurados correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al restaurar grupos.' };
+  }
+}
+
+export async function restorePrivilegesAction(privileges: unknown[]) {
+  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
+  const batch = writeBatch(db);
+  try {
+    await verifySessionOrThrow();
+    for (const item of privileges) {
+      const validated = RestorePrivilegeSchema.safeParse(item);
+      if (!validated.success) continue;
+      const { id, ...data } = validated.data;
+      batch.set(doc(db, 'privileges', id), data);
+    }
+    await batch.commit();
+    revalidatePath('/privileges');
+    return { success: true, message: 'Privilegios restaurados correctamente.' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Error al restaurar privilegios.' };
   }
 }

@@ -2,11 +2,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { Transaction, FirestoreTransaction } from '@/lib/types';
+import type { Transaction, FirestoreTransaction, Resolution, FirestoreResolution } from '@/lib/types';
 import DashboardClient from '@/components/dashboard-client';
 import { Skeleton } from '@/components/ui/skeleton';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 
 interface HomePageContentProps {
@@ -15,13 +16,22 @@ interface HomePageContentProps {
 }
 
 const serializeTransaction = (doc: any): Transaction => {
-    const data = doc.data() as FirestoreTransaction;
-    return {
-      id: doc.id,
-      ...data,
-      date: (data.date as unknown as Timestamp).toDate(),
-    };
+  const data = doc.data() as FirestoreTransaction;
+  return {
+    id: doc.id,
+    ...data,
+    date: (data.date as unknown as Timestamp).toDate(),
   };
+};
+
+const serializeResolution = (doc: any): Resolution => {
+  const data = doc.data() as FirestoreResolution;
+  return {
+    id: doc.id,
+    ...data,
+    startDate: (data.startDate as unknown as Timestamp).toDate(),
+  };
+};
 
 export default function HomePageContent({ monthParam, yearParam }: HomePageContentProps) {
   const [data, setData] = useState<any>(null);
@@ -33,36 +43,59 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
       setLoading(true);
       setError(null);
 
-      if (!db) {
-        setError("La conexión con la base de datos no está disponible. Asegúrate de que estás en un entorno de navegador.");
+      if (!db || !auth) {
+        setError("La conexión con la base de datos no está disponible.");
         setLoading(false);
         return;
       }
 
       try {
+        await auth.authStateReady();
+
+        if (!auth.currentUser) {
+          try {
+            await signInAnonymously(auth);
+          } catch (authError: any) {
+            console.error("Authentication Error:", authError);
+            if (authError.code === 'auth/operation-not-allowed' || authError.code === 'auth/admin-restricted-operation') {
+              throw new Error("La autenticación anónima no está habilitada en la consola de Firebase. Ve a Authentication -> Sign-in method y habilita 'Anonymous'.");
+            }
+            throw new Error(`Error de autenticación: ${authError.message}`);
+          }
+        }
+
+        console.log("Using User UID:", auth.currentUser?.uid);
+
+        console.log("Fetching transactions...");
         const transactionsCol = collection(db, 'transactions');
         const q = query(transactionsCol, orderBy('date', 'desc'));
         const querySnapshot = await getDocs(q);
         const allTransactions = querySnapshot.docs.map(serializeTransaction);
+        console.log("Transactions fetched successfully. Count:", allTransactions.length);
+
+        console.log("Fetching resolutions...");
+        const resolutionsCol = collection(db, 'resolutions');
+        const resolutionsSnapshot = await getDocs(resolutionsCol);
+        const resolutions = resolutionsSnapshot.docs.map(serializeResolution);
+        console.log("Resolutions fetched successfully. Count:", resolutions.length);
 
         const pendingBranchTransactions = allTransactions
-            .filter(t => t.status === 'Pendiente de envío');
+          .filter(t => t.status === 'Pendiente de envío');
 
         const currentYear = new Date().getFullYear();
         const currentMonth = new Date().getMonth() + 1;
-        
+
         const selectedYear = yearParam ? parseInt(yearParam) : currentYear;
         const selectedMonth = monthParam ? parseInt(monthParam) : currentMonth;
 
         const transactionsForSelectedPeriod = allTransactions.filter(t => {
-            const transactionDate = new Date(t.date);
-            return transactionDate.getFullYear() === selectedYear && transactionDate.getMonth() + 1 === selectedMonth;
+          const transactionDate = new Date(t.date);
+          return transactionDate.getFullYear() === selectedYear && transactionDate.getMonth() + 1 === selectedMonth;
         });
 
-        let years = [...new Set(allTransactions.map(t => new Date(t.date).getFullYear()))].sort((a,b) => b - a);
-        if (years.length === 0) {
-          years.push(currentYear);
-        }
+        const yearsSet = new Set(allTransactions.map(t => new Date(t.date).getFullYear()));
+        yearsSet.add(currentYear);
+        let years = Array.from(yearsSet).sort((a, b) => b - a);
 
         const totalIncome = transactionsForSelectedPeriod
           .filter((t) => t.type === 'income')
@@ -71,7 +104,7 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
         const totalExpenses = transactionsForSelectedPeriod
           .filter((t) => t.type === 'expense')
           .reduce((sum, t) => sum + t.amount, 0);
-        
+
         const totalBranchTransfers = transactionsForSelectedPeriod
           .filter((t) => t.type === 'branch_transfer')
           .reduce((sum, t) => sum + t.amount, 0);
@@ -86,7 +119,7 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
             }
             return acc;
           }, {} as Record<string, number>);
-          
+
         const congregationIncome = incomeByCategory['congregation'] || 0;
         const worldwideWorkIncome = incomeByCategory['worldwide_work'] || 0;
         const renovationIncome = incomeByCategory['renovation'] || 0;
@@ -94,7 +127,7 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
         const totalIncomeAllTime = allTransactions
           .filter((t) => t.type === 'income')
           .reduce((sum, t) => sum + t.amount, 0);
-        
+
         const totalExpensesAllTime = allTransactions
           .filter((t) => t.type === 'expense')
           .reduce((sum, t) => sum + t.amount, 0);
@@ -104,7 +137,7 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
           .reduce((sum, t) => sum + t.amount, 0);
 
         const totalBalance = totalIncomeAllTime - totalExpensesAllTime - totalBranchTransfersAllTime;
-        
+
         const monthlyDataAllYears = allTransactions.reduce((acc, t) => {
           const transactionDate = new Date(t.date);
           // Use UTC dates to prevent timezone issues
@@ -121,12 +154,13 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
           }
           return acc;
         }, {} as Record<string, { month: string; income: number; expenses: number, branch_transfer: number }>);
-        
-        const sortedMonthlyData = Object.values(monthlyDataAllYears).sort((a,b) => new Date(a.month) < new Date(b.month) ? -1 : 1).slice(-6);
+
+        const sortedMonthlyData = Object.values(monthlyDataAllYears).sort((a, b) => new Date(a.month) < new Date(b.month) ? -1 : 1).slice(-6);
 
         setData({
           transactions: transactionsForSelectedPeriod,
           allTransactions: allTransactions,
+          resolutions,
           totalIncome,
           totalExpenses,
           balance,
@@ -145,7 +179,8 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
 
       } catch (e: any) {
         console.error("Error fetching data.", e);
-        setError(e.message || 'Ocurrió un error desconocido.');
+        const uidInfo = auth?.currentUser ? `\n(User UID: ${auth.currentUser.uid})` : '\n(No authenticated user)';
+        setError((e.message || 'Ocurrió un error desconocido.') + uidInfo);
       } finally {
         setLoading(false);
       }
@@ -156,34 +191,34 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
 
   if (loading) {
     return (
-        <div className="flex flex-col min-h-screen">
-            <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6 z-10">
-                <Skeleton className="h-6 w-32" />
-                <div className="ml-auto flex items-center gap-4">
-                    <Skeleton className="h-10 w-24" />
-                    <Skeleton className="h-10 w-24" />
-                    <Skeleton className="h-10 w-32" />
-                </div>
-            </header>
-            <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
-                </div>
-                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                    <Skeleton className="lg:col-span-4 h-96" />
-                    <Skeleton className="lg:col-span-3 h-96" />
-                </div>
-            </main>
-        </div>
+      <div className="flex flex-col min-h-screen">
+        <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6 z-10">
+          <Skeleton className="h-6 w-32" />
+          <div className="ml-auto flex items-center gap-4">
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </header>
+        <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Skeleton className="lg:col-span-4 h-96" />
+            <Skeleton className="lg:col-span-3 h-96" />
+          </div>
+        </main>
+      </div>
     );
   }
 
@@ -207,6 +242,7 @@ export default function HomePageContent({ monthParam, yearParam }: HomePageConte
     <DashboardClient
       transactions={data.transactions}
       allTransactions={data.allTransactions}
+      resolutions={data.resolutions}
       totalIncome={data.totalIncome}
       totalExpenses={data.totalExpenses}
       balance={data.balance}
