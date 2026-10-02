@@ -1,6 +1,6 @@
-# KH App — Gestión de Finanzas JW
+# KH App
 
-Aplicación Next.js para la gestión de finanzas, solicitudes de precursoría y asignaciones anuales de una congregación.
+Aplicación Next.js para la gestión de finanzas y asignaciones anuales de una congregación.
 
 ## Stack
 
@@ -44,7 +44,6 @@ Ver `docs/` para detalles de arquitectura:
 ## Estado Actual
 
 - ✅ Gestión de ingresos/gastos (Firestore)
-- ✅ Solicitudes de precursoría
 - ✅ Resoluciones y envíos a sucursal
 - ✅ Asignaciones anuales (charlas, conmemoración)
 - ✅ PWA instalable

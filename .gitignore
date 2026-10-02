@@ -3,3 +3,11 @@
 node_modules
 .atl/
 .codegraph/
+
+# Local environment files
+.env*.local
+env.local
+
+# OS files
+.DS_Store
+
