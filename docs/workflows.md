@@ -53,8 +53,6 @@ Build → next-pwa genera service worker en /public
 | `/` | Redirect → `/dashboard` | ✅ |
 | `/dashboard` | Gráficas de ingresos/gastos | ✅ |
 | `/finance` | CRUD transacciones + resoluciones | ✅ |
-| `/requests` | Gestión solicitudes precursorado | ✅ |
-| `/requests/pub` | Formulario público (sin auth) | ❌ |
 | `/annual-assignments` | Charlas y conmemoración | ✅ |
 | `/settings` | Nombre congregación | ✅ |
 | `/login` | Login mock | ❌ |

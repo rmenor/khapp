@@ -21,7 +21,6 @@ Este archivo registra las skills de desarrollo específicas para el proyecto `kh
 | Skill | Descripción | Archivo de Especificación |
 | :--- | :--- | :--- |
 | `khapp-finance-domain` | Transacciones, derivación de status desde `category`, branch transfer atómico, resoluciones, restore JSON. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-finance-domain/SKILL.md) |
-| `khapp-precursor-requests` | Solicitudes de precursoría: continuous vs monthly, refinements Zod, parálisis con `endDate`, reactivación con `deleteField`. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-precursor-requests/SKILL.md) |
 | `khapp-annual-assignments` | Tres colecciones hermanas (`pioneer_talks`, `special_talks`, `memorials`), add/update separados, delete discriminado. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-annual-assignments/SKILL.md) |
 | `khapp-people-entities` | Publishers, groups, privileges: CRUD, cascada atómica al borrar publicador, referencia por ID, restore JSON. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-people-entities/SKILL.md) |
 
@@ -40,7 +39,6 @@ Cuando el agente trabaja en una tarea, las skills deben cargarse en este orden:
 
 2. **Después, la de dominio** según la colección afectada:
    - `transactions` o `resolutions` → `khapp-finance-domain`
-   - `requests` → `khapp-precursor-requests`
    - `pioneer_talks` / `special_talks` / `memorials` → `khapp-annual-assignments`
    - `publishers` / `groups` / `privileges` → `khapp-people-entities`
 

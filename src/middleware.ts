@@ -53,6 +53,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - manifest.json (manifest file)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|manifest.json|requests/pub).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|manifest.json).*)',
   ],
 };

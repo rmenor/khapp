@@ -13,11 +13,9 @@ khapp/
 │   │   │   ├── layout.tsx     # Sidebar + auth check
 │   │   │   ├── dashboard/     # Panel principal con gráficas
 │   │   │   ├── finance/       # Ingresos, gastos, resoluciones
-│   │   │   ├── requests/      # Solicitudes de precursoría
 │   │   │   ├── annual-assignments/ # Charlas y conmemoración
 │   │   │   └── settings/      # Configuración congregación
 │   │   ├── login/             # Página de login (mock)
-│   │   ├── requests/pub/      # Formulario público (sin auth)
 │   │   ├── layout.tsx         # Root layout (font, toaster)
 │   │   ├── page.tsx           # Redirect a /dashboard
 │   │   └── globals.css        # Estilos globales + variables shadcn
@@ -63,7 +61,6 @@ khapp/
 | Collection | Tipo | Descripción |
 |------------|------|-------------|
 | `transactions` | Transaction | Ingresos, gastos, envíos |
-| `requests` | Request | Solicitudes precursoría |
 | `resolutions` | Resolution | Resoluciones de gasto |
 | `pioneer_talks` | PioneerTalk | Charlas con precursores |
 | `special_talks` | SpecialTalk | Charlas especiales |

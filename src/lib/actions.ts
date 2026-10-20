@@ -15,9 +15,8 @@ import {
   getDoc,
   setDoc,
   getDocs,
-  deleteField,
 } from 'firebase/firestore';
-import type { RequestStatus, TransactionStatus } from './types';
+import type { TransactionStatus } from './types';
 import { cookies } from 'next/headers';
 import { signSession, verifySession } from './auth-session';
 
@@ -119,49 +118,6 @@ const RestoreTransactionSchema = z.object({
   status: z.enum(['Completado', 'Pendiente de envío', 'Enviado']).optional(),
 });
 
-const RequestSchema = z.object({
-  name: z.string().min(3, { message: 'El nombre es obligatorio y debe tener al menos 3 caracteres.' }),
-  year: z.coerce.number({ required_error: 'El año es obligatorio.' }),
-  months: z.array(z.string()).optional(),
-  isContinuous: z.boolean(),
-  hours: z.coerce.number().optional(),
-}).refine(data => {
-  if (!data.isContinuous) {
-    return data.months && data.months.length > 0;
-  }
-  return true;
-}, {
-  message: 'Debes especificar los meses si la solicitud no es de servicio continuo.',
-  path: ['months'],
-}).refine(data => {
-  if (!data.isContinuous) {
-    return !!data.hours;
-  }
-  return true;
-}, {
-  message: 'Debes seleccionar una modalidad de horas.',
-  path: ['hours'],
-});
-
-
-const UpdateRequestStatusSchema = z.object({
-  id: z.string().min(1, { message: 'El ID de la solicitud es obligatorio.' }),
-  status: z.enum(['Aprobado', 'Rechazado'], {
-    errorMap: () => ({ message: 'Por favor, selecciona un estado válido.' }),
-  }),
-});
-
-const DeleteRequestSchema = z.object({
-  id: z.string().min(1, { message: 'El ID de la solicitud es obligatorio.' }),
-});
-
-const ParalyzeRequestSchema = z.object({
-  id: z.string().min(1, { message: 'El ID de la solicitud es obligatorio.' }),
-});
-
-const ReactivateRequestSchema = z.object({
-  id: z.string().min(1, { message: 'El ID de la solicitud es obligatorio.' }),
-});
 
 const CongregationSchema = z.object({
   name: z.string().min(1, { message: 'El nombre de la congregación es obligatorio.' }),
@@ -361,7 +317,6 @@ export async function updateTransactionAction(data: z.infer<typeof UpdateTransac
     await updateDoc(transactionRef, updateData);
 
     revalidatePath('/finance');
-    revalidatePath('/requests');
     return { success: true, message: 'Transacción actualizada correctamente.' };
   } catch (e: any) {
     const message = e instanceof Error ? e.message : 'Ocurrió un error desconocido.';
@@ -425,164 +380,6 @@ export async function restoreTransactionsAction(transactions: unknown[]) {
   }
 }
 
-export async function addRequestAction(data: z.infer<typeof RequestSchema>) {
-  const validatedFields = RequestSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    const { name, months, isContinuous, year, hours } = validatedFields.data;
-
-    const requestData: any = {
-      name,
-      isContinuous,
-      requestDate: Timestamp.fromDate(new Date()),
-      status: 'Pendiente',
-      year,
-      months: months || [],
-    };
-
-    if (!isContinuous) {
-      requestData.hours = hours;
-    } else {
-      requestData.months = [];
-    }
-
-    await addDoc(collection(db, 'requests'), requestData);
-
-    revalidatePath('/requests');
-    return { success: true, message: 'Solicitud añadida correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir la solicitud.' };
-  }
-}
-
-export async function updateRequestStatusAction(data: z.infer<typeof UpdateRequestStatusSchema>) {
-  const validatedFields = UpdateRequestStatusSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { id, status } = validatedFields.data;
-    const requestRef = doc(db, 'requests', id);
-    await updateDoc(requestRef, { status });
-
-    revalidatePath('/requests');
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return { success: true, message: 'Estado de la solicitud actualizado correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al actualizar el estado de la solicitud.' };
-  }
-}
-
-export async function deleteRequestAction(data: z.infer<typeof DeleteRequestSchema>) {
-  console.log('=== DELETE REQUEST ACTION CALLED ===');
-  console.log('Received data:', data);
-
-  const validatedFields = DeleteRequestSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    console.error('Validation error in deleteRequestAction:', validatedFields.error.flatten());
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    console.error('Database not available in deleteRequestAction');
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { id } = validatedFields.data;
-
-    if (!id) {
-      console.error('No ID provided to deleteRequestAction');
-      return { success: false, message: 'ID de solicitud no proporcionado.' };
-    }
-
-    console.log('Attempting to delete request with ID:', id);
-    const docRef = doc(db, 'requests', id);
-
-    // Delete directly - Firestore handles offline persistence automatically
-    await deleteDoc(docRef);
-    console.log('Successfully deleted request:', id);
-
-    revalidatePath('/requests');
-    return { success: true, message: 'Solicitud eliminada correctamente.' };
-  } catch (e: any) {
-    console.error('Error in deleteRequestAction:', e);
-    const message = e instanceof Error ? e.message : 'Ocurrió un error desconocido.';
-    return { success: false, message: `Error al eliminar la solicitud: ${message}` };
-  }
-}
-
-export async function paralyzeRequestAction(data: z.infer<typeof ParalyzeRequestSchema>) {
-  console.log('=== server: paralyzeRequestAction CALLED ===');
-  console.log('Server received data:', data);
-  const validatedFields = ParalyzeRequestSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    console.error('Server: Validation failed:', validatedFields.error.flatten().fieldErrors);
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    console.error('Server: DB not available');
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { id } = validatedFields.data;
-    console.log('Server: Updating document requests/' + id + ' with endDate');
-    const requestRef = doc(db, 'requests', id);
-    await updateDoc(requestRef, { endDate: Timestamp.fromDate(new Date()) });
-    console.log('Server: Document successfully updated');
-
-    revalidatePath('/requests');
-    return { success: true, message: 'El servicio continuo ha sido paralizado.' };
-  } catch (e: any) {
-    console.error('Server: Error in updateDoc:', e);
-    return { success: false, message: e.message || 'Error al paralizar la solicitud.' };
-  }
-}
-
-export async function reactivateRequestAction(data: z.infer<typeof ReactivateRequestSchema>) {
-  const validatedFields = ReactivateRequestSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { id } = validatedFields.data;
-    const requestRef = doc(db, 'requests', id);
-    await updateDoc(requestRef, { endDate: deleteField() });
-
-    revalidatePath('/requests');
-    return { success: true, message: 'El servicio continuo ha sido reactivado.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al reactivar la solicitud.' };
-  }
-}
 
 export async function getCongregationAction() {
   if (!db) {
