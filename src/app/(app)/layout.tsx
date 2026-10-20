@@ -9,7 +9,7 @@ import { Sidebar } from '@/components/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Home, Landmark, Settings, LogOut, PanelLeft, Users, Layers, Award } from 'lucide-react';
+import { Home, Landmark, Settings, LogOut, PanelLeft, Award } from 'lucide-react';
 import { AppLogo } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
@@ -17,8 +17,6 @@ import { usePathname } from 'next/navigation';
 
 const navLinks = [
     { href: '/dashboard', icon: Home, label: 'Inicio' },
-    { href: '/publishers', icon: Users, label: 'Publicadores' },
-    { href: '/groups', icon: Layers, label: 'Grupos' },
     { href: '/privileges', icon: Award, label: 'Privilegios' },
     { href: '/finance', icon: Landmark, label: 'Finanzas' },
 ];

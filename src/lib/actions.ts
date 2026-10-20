@@ -635,35 +635,8 @@ export async function deleteAnnualAssignmentAction(id: string, type: 'pioneer_ta
 }
 
 // ==========================================
-// PUBLISHERS, GROUPS AND PRIVILEGES SCHEMAS
+// PRIVILEGES SCHEMAS
 // ==========================================
-
-const PublisherSchema = z.object({
-  name: z.string().min(2, { message: 'El nombre debe tener al menos 2 caracteres.' }),
-});
-
-const UpdatePublisherSchema = PublisherSchema.extend({
-  id: z.string().min(1),
-});
-
-const DeletePublisherSchema = z.object({
-  id: z.string().min(1),
-});
-
-const GroupSchema = z.object({
-  name: z.string().min(2, { message: 'El nombre del grupo debe tener al menos 2 caracteres.' }),
-  superintendentId: z.string().optional().nullable(),
-  auxiliaryId: z.string().optional().nullable(),
-  publisherIds: z.array(z.string()).default([]),
-});
-
-const UpdateGroupSchema = GroupSchema.extend({
-  id: z.string().min(1),
-});
-
-const DeleteGroupSchema = z.object({
-  id: z.string().min(1),
-});
 
 const PrivilegeSchema = z.object({
   name: z.string().min(2, { message: 'El nombre del privilegio debe tener al menos 2 caracteres.' }),
@@ -678,163 +651,6 @@ const DeletePrivilegeSchema = z.object({
   id: z.string().min(1),
 });
 
-// ==========================================
-// ACTIONS FOR PUBLISHERS
-// ==========================================
-
-export async function addPublisherAction(data: z.infer<typeof PublisherSchema>) {
-  const validatedFields = PublisherSchema.safeParse(data);
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
-  try {
-    await verifySessionOrThrow();
-    await addDoc(collection(db, 'publishers'), validatedFields.data);
-    revalidatePath('/publishers');
-    revalidatePath('/groups');
-    revalidatePath('/privileges');
-    return { success: true, message: 'Publicador añadido correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir el publicador.' };
-  }
-}
-
-export async function updatePublisherAction(data: z.infer<typeof UpdatePublisherSchema>) {
-  const validatedFields = UpdatePublisherSchema.safeParse(data);
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
-  try {
-    await verifySessionOrThrow();
-    const { id, name } = validatedFields.data;
-    await updateDoc(doc(db, 'publishers', id), { name });
-    revalidatePath('/publishers');
-    revalidatePath('/groups');
-    revalidatePath('/privileges');
-    return { success: true, message: 'Publicador actualizado correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al actualizar el publicador.' };
-  }
-}
-
-export async function deletePublisherAction(data: z.infer<typeof DeletePublisherSchema>) {
-  const validatedFields = DeletePublisherSchema.safeParse(data);
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.' };
-  }
-  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
-  try {
-    await verifySessionOrThrow();
-    const { id } = validatedFields.data;
-
-    const batch = writeBatch(db);
-
-    // 1. Delete publisher document
-    batch.delete(doc(db, 'publishers', id));
-
-    // 2. Fetch all groups and remove publisher from superintendent, auxiliary and member list
-    const groupsCol = collection(db, 'groups');
-    const groupsSnap = await getDocs(groupsCol);
-    groupsSnap.docs.forEach((groupDoc) => {
-      const groupData = groupDoc.data();
-      const publisherIds = groupData.publisherIds || [];
-      const isSuper = groupData.superintendentId === id;
-      const isAux = groupData.auxiliaryId === id;
-      const isMember = publisherIds.includes(id);
-
-      if (isSuper || isAux || isMember) {
-        const updateData: any = {};
-        if (isSuper) updateData.superintendentId = null;
-        if (isAux) updateData.auxiliaryId = null;
-        if (isMember) {
-          updateData.publisherIds = publisherIds.filter((pubId: string) => pubId !== id);
-        }
-        batch.update(doc(db, 'groups', groupDoc.id), updateData);
-      }
-    });
-
-    // 3. Fetch all privileges and remove publisher from member list
-    const privilegesCol = collection(db, 'privileges');
-    const privilegesSnap = await getDocs(privilegesCol);
-    privilegesSnap.docs.forEach((privDoc) => {
-      const privData = privDoc.data();
-      const publisherIds = privData.publisherIds || [];
-      const isMember = publisherIds.includes(id);
-
-      if (isMember) {
-        batch.update(doc(db, 'privileges', privDoc.id), {
-          publisherIds: publisherIds.filter((pubId: string) => pubId !== id),
-        });
-      }
-    });
-
-    // Commit all updates atomically
-    await batch.commit();
-
-    revalidatePath('/publishers');
-    revalidatePath('/groups');
-    revalidatePath('/privileges');
-    return { success: true, message: 'Publicador y todas sus referencias en grupos/privilegios eliminados correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al eliminar el publicador.' };
-  }
-}
-
-// ==========================================
-// ACTIONS FOR GROUPS
-// ==========================================
-
-export async function addGroupAction(data: z.infer<typeof GroupSchema>) {
-  const validatedFields = GroupSchema.safeParse(data);
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
-  try {
-    await verifySessionOrThrow();
-    await addDoc(collection(db, 'groups'), validatedFields.data);
-    revalidatePath('/groups');
-    return { success: true, message: 'Grupo añadido correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir el grupo.' };
-  }
-}
-
-export async function updateGroupAction(data: z.infer<typeof UpdateGroupSchema>) {
-  const validatedFields = UpdateGroupSchema.safeParse(data);
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
-  try {
-    await verifySessionOrThrow();
-    const { id, ...rest } = validatedFields.data;
-    await updateDoc(doc(db, 'groups', id), rest);
-    revalidatePath('/groups');
-    return { success: true, message: 'Grupo actualizado correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al actualizar el grupo.' };
-  }
-}
-
-export async function deleteGroupAction(data: z.infer<typeof DeleteGroupSchema>) {
-  const validatedFields = DeleteGroupSchema.safeParse(data);
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.' };
-  }
-  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
-  try {
-    await verifySessionOrThrow();
-    const { id } = validatedFields.data;
-    await deleteDoc(doc(db, 'groups', id));
-    revalidatePath('/groups');
-    return { success: true, message: 'Grupo eliminado correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al eliminar el grupo.' };
-  }
-}
 
 // ==========================================
 // ACTIONS FOR PRIVILEGES
@@ -891,67 +707,14 @@ export async function deletePrivilegeAction(data: z.infer<typeof DeletePrivilege
 }
 
 // ==========================================
-// RESTORE SCHEMAS & ACTIONS FOR NEW ENTITIES
+// RESTORE SCHEMAS & ACTIONS
 // ==========================================
-
-const RestorePublisherSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-});
-
-const RestoreGroupSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  superintendentId: z.string().optional().nullable(),
-  auxiliaryId: z.string().optional().nullable(),
-  publisherIds: z.array(z.string()).default([]),
-});
 
 const RestorePrivilegeSchema = z.object({
   id: z.string(),
   name: z.string(),
   publisherIds: z.array(z.string()).default([]),
 });
-
-export async function restorePublishersAction(publishers: unknown[]) {
-  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
-  const batch = writeBatch(db);
-  try {
-    await verifySessionOrThrow();
-    for (const item of publishers) {
-      const validated = RestorePublisherSchema.safeParse(item);
-      if (!validated.success) continue;
-      const { id, ...data } = validated.data;
-      batch.set(doc(db, 'publishers', id), data);
-    }
-    await batch.commit();
-    revalidatePath('/publishers');
-    revalidatePath('/groups');
-    revalidatePath('/privileges');
-    return { success: true, message: 'Publicadores restaurados correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al restaurar publicadores.' };
-  }
-}
-
-export async function restoreGroupsAction(groups: unknown[]) {
-  if (!db) return { success: false, message: 'La base de datos no está disponible.' };
-  const batch = writeBatch(db);
-  try {
-    await verifySessionOrThrow();
-    for (const item of groups) {
-      const validated = RestoreGroupSchema.safeParse(item);
-      if (!validated.success) continue;
-      const { id, ...data } = validated.data;
-      batch.set(doc(db, 'groups', id), data);
-    }
-    await batch.commit();
-    revalidatePath('/groups');
-    return { success: true, message: 'Grupos restaurados correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al restaurar grupos.' };
-  }
-}
 
 export async function restorePrivilegesAction(privileges: unknown[]) {
   if (!db) return { success: false, message: 'La base de datos no está disponible.' };

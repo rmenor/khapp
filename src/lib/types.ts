@@ -84,18 +84,6 @@ export type Publisher = {
     name: string;
 };
 
-export type FirestorePublisher = Omit<Publisher, 'id'>;
-
-export type Group = {
-    id: string;
-    name: string;
-    superintendentId?: string;
-    auxiliaryId?: string;
-    publisherIds: string[];
-};
-
-export type FirestoreGroup = Omit<Group, 'id'>;
-
 export type Privilege = {
     id: string;
     name: string;
