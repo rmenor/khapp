@@ -10,7 +10,7 @@ import { AppLogo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { restoreTransactionsAction, restorePrivilegesAction, updateCongregationAction, getCongregationAction } from '@/lib/actions';
+import { restoreTransactionsAction, updateCongregationAction, getCongregationAction } from '@/lib/actions';
 import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
@@ -47,13 +47,9 @@ export default function SettingsPage() {
             const transactionsSnap = await getDocs(collection(db, 'transactions'));
             const transactions = transactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-            const privilegesSnap = await getDocs(collection(db, 'privileges'));
-            const privileges = privilegesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
             const backupData = {
                 version: 2,
-                transactions,
-                privileges
+                transactions
             };
 
             const dataStr = JSON.stringify(backupData, null, 2);
@@ -118,22 +114,14 @@ export default function SettingsPage() {
                     message = result.message || '';
                 } else if (typeof parsedData === 'object' && parsedData !== null) {
                     // Nuevo formato: objeto con colecciones
-                    let txSuccess = true;
-                    let privSuccess = true;
-
                     if (Array.isArray(parsedData.transactions) && parsedData.transactions.length > 0) {
                         const res = await restoreTransactionsAction(parsedData.transactions);
-                        txSuccess = res.success;
+                        restoreSuccess = res.success;
+                        message = res.message || '';
+                    } else {
+                        restoreSuccess = false;
+                        message = 'No se encontraron transacciones para restaurar.';
                     }
-                    if (Array.isArray(parsedData.privileges) && parsedData.privileges.length > 0) {
-                        const res = await restorePrivilegesAction(parsedData.privileges);
-                        privSuccess = res.success;
-                    }
-
-                    restoreSuccess = txSuccess && privSuccess;
-                    message = restoreSuccess 
-                        ? 'Datos restaurados correctamente (transacciones y privilegios).'
-                        : 'Algunos datos no pudieron restaurarse completamente.';
                 } else {
                     throw new Error('El archivo de copia de seguridad no tiene un formato válido.');
                 }

@@ -22,7 +22,6 @@ Este archivo registra las skills de desarrollo específicas para el proyecto `kh
 | :--- | :--- | :--- |
 | `khapp-finance-domain` | Transacciones, derivación de status desde `category`, branch transfer atómico, resoluciones, restore JSON. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-finance-domain/SKILL.md) |
 | `khapp-annual-assignments` | Tres colecciones hermanas (`pioneer_talks`, `special_talks`, `memorials`), add/update separados, delete discriminado. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-annual-assignments/SKILL.md) |
-| `khapp-people-entities` | Privileges: CRUD de privilegios de servicio, restore JSON. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-people-entities/SKILL.md) |
 
 ## Orden de Carga Recomendado
 
@@ -40,7 +39,6 @@ Cuando el agente trabaja en una tarea, las skills deben cargarse en este orden:
 2. **Después, la de dominio** según la colección afectada:
    - `transactions` o `resolutions` → `khapp-finance-domain`
    - `pioneer_talks` / `special_talks` / `memorials` → `khapp-annual-assignments`
-   - `privileges` → `khapp-people-entities`
 
 3. **Si la tarea cruza varios dominios** (ej. añadir una columna a la tabla de grupos que muestra un campo de publicador), carga las dos skills de dominio afectadas.
 

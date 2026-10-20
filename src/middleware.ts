@@ -6,7 +6,6 @@ const PROTECTED_ROUTES = [
   '/dashboard',
   '/finance',
   '/annual-assignments',
-  '/privileges',
   '/settings',
 ];
 

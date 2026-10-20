@@ -78,16 +78,3 @@ export type Memorial = {
 export type FirestoreMemorial = Omit<Memorial, 'id' | 'date'> & {
     date: Timestamp;
 };
-
-export type Publisher = {
-    id: string;
-    name: string;
-};
-
-export type Privilege = {
-    id: string;
-    name: string;
-    publisherIds: string[];
-};
-
-export type FirestorePrivilege = Omit<Privilege, 'id'>;
