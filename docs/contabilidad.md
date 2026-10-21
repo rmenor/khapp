@@ -11,6 +11,32 @@ muestra la diferencia en rojo.
 
 ---
 
+## 0. Dónde se ejecuta
+
+La contabilidad es **local**. Sus datos viven en un fichero SQLite en el disco
+del servidor que ejecuta la aplicación, así que la parte de finanzas se usa
+ejecutando la app en el propio equipo:
+
+```bash
+npm install
+npm run db:init
+npm run dev
+```
+
+Es la única forma en que el import en lote desde una carpeta tiene sentido: la
+carpeta del vault está en ese equipo y la aplicación la lee en modo lectura.
+
+En un entorno con el disco de solo lectura (Firebase App Hosting / Cloud Run)
+no se puede crear el fichero de base de datos. `getStorageStatus()` lo
+detecta antes de renderizar y las páginas muestran un aviso explicativo en
+lugar de fallar; las rutas de la API devuelven `503`. El resto de la
+aplicación no se ve afectado.
+
+Si en algún momento la app se despliega en un servidor con disco, la
+contabilidad funciona tal cual, sin cambios de código.
+
+---
+
 ## 1. Los documentos de origen
 
 ### S-26 — Hoja de cuentas

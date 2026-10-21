@@ -35,6 +35,24 @@ or write them.
 Other domains (requests, publishers, groups, privileges, annual assignments)
 stay in Firestore. Do not "migrate" them as a side effect.
 
+## The accounting is a LOCAL feature
+
+The accounting data lives in a SQLite file on the disk of the machine that runs
+the app. Therefore it is used **locally** (`npm run dev` on your own machine),
+which is also the only context where the "import a whole folder" feature makes
+sense: the vault folder is on that machine.
+
+In a deployment with a read-only filesystem (Firebase App Hosting / Cloud Run)
+the database file cannot be created. `getStorageStatus()` detects it before
+rendering, the finance pages show an explanatory notice instead of failing, and
+the API routes return `503`. The rest of the application is unaffected.
+
+**Anti-pattern:** do not add code that assumes the database can always be
+opened. Use `getStorageStatus()` in the layout and check it in the API routes.
+
+If the app is ever deployed to a machine with a persistent disk, the
+accounting works as is, with no code changes.
+
 ## Critical Patterns
 
 ### 1. The data comes from the PDF, nothing is invented

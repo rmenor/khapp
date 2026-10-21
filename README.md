@@ -51,7 +51,11 @@ Puntos importantes:
 - Los importes con dos cifras en una misma fila (entrada en una cuenta y salida
   en otra) **se conservan por separado**; nunca se suman a ciegas.
 
-### Arranque
+### La contabilidad es local: dónde se ejecuta
+
+La contabilidad guarda sus datos en un fichero SQLite en el disco del servidor
+que la ejecuta. Por eso **la parte de finanzas se usa en local**, ejecutando la
+aplicación en tu propio equipo:
 
 ```bash
 npm install
@@ -59,8 +63,18 @@ npm run db:init          # crea data/contabilidad.db con el esquema vacío
 npm run dev              # http://localhost:3000
 ```
 
-La base de datos se crea sola en el primer acceso. La ruta se puede cambiar con
-la variable de entorno `CONTABILIDAD_DB_PATH`.
+Es la única forma en que el "importar en lote desde una carpeta" tiene
+sentido: la carpeta del vault está en tu equipo, y la aplicación lee de ella
+**en modo lectura**, sin copiar, mover ni borrar nada.
+
+En el despliegue en **Firebase App Hosting** (Cloud Run) el sistema de ficheros
+es de solo lectura, así que ahí no se puede crear la base de datos. `/finance`
+lo detecta y lo explica con un aviso; el resto de la aplicación (publicadores,
+grupos, privilegios, solicitudes) funciona con normalidad. Si en algún momento
+se despliega en un servidor con disco, la contabilidad funciona tal cual, sin
+cambios de código.
+
+La ruta de la base de datos se puede cambiar con `CONTABILIDAD_DB_PATH`.
 
 ### Importar informes
 
