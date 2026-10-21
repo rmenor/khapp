@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { verifySession } from '@/lib/auth-session';
+import { getStorageStatus } from '@/lib/db/client';
 import { applyPreview } from '@/lib/finance/importer';
 import { dropPreview, getPreview } from '@/lib/finance/preview-store';
 
@@ -39,6 +40,14 @@ export async function POST(request: Request) {
 
   if (!(await verifySession(cookie))) {
     return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
+  }
+
+  const storage = getStorageStatus();
+  if (!storage.available) {
+    return NextResponse.json(
+      { error: storage.reason ?? 'La contabilidad local no está disponible en este entorno.' },
+      { status: 503 },
+    );
   }
 
   const body = await request.json().catch(() => null);

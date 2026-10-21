@@ -1,4 +1,5 @@
 import { verifySession } from '@/lib/auth-session';
+import { getStorageStatus } from '@/lib/db/client';
 import { listMovements, parseFilters } from '@/lib/db/queries/transactions';
 
 export const runtime = 'nodejs';
@@ -27,6 +28,14 @@ export async function GET(request: Request) {
 
   if (!(await verifySession(cookie))) {
     return new Response('No autorizado.', { status: 401 });
+  }
+
+  const storage = getStorageStatus();
+  if (!storage.available) {
+    return new Response(
+      storage.reason ?? 'La contabilidad local no está disponible en este entorno.',
+      { status: 503 },
+    );
   }
 
   const url = new URL(request.url);
