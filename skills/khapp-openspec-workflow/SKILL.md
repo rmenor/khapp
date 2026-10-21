@@ -43,14 +43,16 @@ After verify, the entire folder is moved to `openspec/changes/archive/<date>-<fe
 
 [openspec/config.yaml](file:///Users/ramonmenor/trabajo/github/khapp/openspec/config.yaml) defines rules per phase. Read it before writing any spec. Key rules to honor:
 
-- **proposal**: "Define clear schema requirements for Publishers and Groups" (replace with your feature's entities)
-- **specs**: "Specify user scenarios for X management (CRUD)" and "for Y management (CRUD, member assignment)"
-- **design**: "Design Firestore data structures (collections)" and "Document Next.js Server Actions and UI layout"
+- **proposal**: "Define clear schema requirements for the entities of the change" (replace with your feature's entities)
+- **specs**: "Specify user scenarios in Given/When/Then, in Spanish" (replace with your feature's entities)
+- **design**: "Design the data structures (SQLite tables or Firestore collections)" and "Document Server Actions, route handlers and UI layout"
 - **tasks**: "Break down tasks into model additions, server actions, navigation, and frontend page layouts"
 - **apply**: "Follow clean Next.js patterns, use shadcn/ui components, and zod validation" with `strict_tdd: false`
-- **verify**: "Manual verification via browser page testing" + "Run linter and type-checker"
+- **verify**: "Manual verification via browser page testing" + "Run linter, type-checker and test suite"
 
-**Anti-pattern**: do NOT write a `tasks.md` that includes a "Tests" section — the project runs with `strict_tdd: false`. There is no test runner in this repo.
+**Anti-pattern**: do NOT write a `tasks.md` that includes a "Tests" section **unless** the change
+introduces or touches the test suite. The project uses `vitest` (`npm test`), so test tasks belong in
+the phase that owns the change (usually the last one).
 
 ### 4. Spec Format: Given/When/Then (Spanish)
 
@@ -110,7 +112,7 @@ Each task has a checkbox `- [ ]` and a file path. Mark checkboxes as done during
 
 Every `verify-report.md` MUST include:
 
-1. **Pruebas Automatizadas** — output of `npm run typecheck` and `npm run lint`, both expected to pass.
+1. **Pruebas Automatizadas** — output of `npm run typecheck` and `npm run lint`, both expected to pass, plus `npm test` when the change touches the test suite.
 2. **Plan de Verificación Manual (Pasos en el Navegador)** — numbered browser steps covering the happy path AND the edge cases defined in the spec.
 
 Reference: [verify-report.md](file:///Users/ramonmenor/trabajo/github/khapp/openspec/changes/archive/2026-06-09-groups-system/verify-report.md).
@@ -213,6 +215,7 @@ openspec/
 # Inside the change folder, after writing all docs:
 npm run typecheck    # Must pass before verify-report.md is written
 npm run lint         # Must pass before verify-report.md is written
+npm test             # Must pass when the change touches the test suite
 
 # Manual browser steps listed in verify-report.md must be executed
 # before moving the folder to /archive/.

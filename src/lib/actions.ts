@@ -9,14 +9,11 @@ import {
   addDoc,
   updateDoc,
   doc,
-  writeBatch,
   Timestamp,
   deleteDoc,
   getDoc,
   setDoc,
-  getDocs,
 } from 'firebase/firestore';
-import type { TransactionStatus } from './types';
 import { cookies } from 'next/headers';
 import { signSession, verifySession } from './auth-session';
 
@@ -24,6 +21,12 @@ const LoginSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
 });
+
+
+/** Extrae un mensaje de error de un valor desconocido. */
+function errorMessage(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined;
+}
 
 export async function loginAction(data: z.infer<typeof LoginSchema>) {
   const validatedFields = LoginSchema.safeParse(data);
@@ -70,315 +73,9 @@ export async function verifySessionOrThrow() {
 }
 
 
-const IncomeSchema = z.object({
-  amount: z.coerce.number().positive({ message: 'La cantidad debe ser un número positivo.' }),
-  date: z.string().min(1, { message: 'La fecha es obligatoria.' }),
-  description: z.string().max(100, { message: 'La descripción debe tener 100 caracteres o menos.' }).optional(),
-  category: z.enum(['congregation', 'worldwide_work', 'renovation'], {
-    errorMap: () => ({ message: 'Por favor, selecciona una categoría válida.' }),
-  }),
-});
-
-const ExpenseSchema = z.object({
-  amount: z.coerce.number().positive({ message: 'La cantidad debe ser un número positivo.' }),
-  date: z.string().min(1, { message: 'La fecha es obligatoria.' }),
-  description: z.string().max(100, { message: 'La descripción debe tener 100 caracteres o menos.' }).optional(),
-});
-
-const BranchTransferSchema = z.object({
-  amount: z.coerce.number().positive({ message: 'La cantidad debe ser mayor que cero.' }),
-  date: z.string().min(1, { message: 'La fecha es obligatoria.' }),
-  description: z.string().max(100, { message: 'La descripción debe tener 100 caracteres o menos.' }).optional(),
-  transactionIds: z.array(z.string()).min(1, { message: 'Debes seleccionar al menos una transacción.' }),
-});
-
-const UpdateTransactionSchema = z.object({
-  id: z.string(),
-  type: z.enum(['income', 'expense', 'branch_transfer']),
-  amount: z.coerce.number().positive({ message: 'La cantidad debe ser un número positivo.' }),
-  date: z.string().min(1, { message: 'La fecha es obligatoria.' }),
-  description: z.string().max(100, { message: 'La descripción debe tener 100 caracteres o menos.' }).optional(),
-  category: z.enum(['congregation', 'worldwide_work', 'renovation']).optional(),
-  status: z.enum(['Completado', 'Pendiente de envío', 'Enviado']).optional(),
-});
-
-const DeleteTransactionSchema = z.object({
-  id: z.string().min(1, { message: 'El ID de la transacción es obligatorio.' }),
-});
-
-const RestoreTransactionSchema = z.object({
-  type: z.enum(['income', 'expense', 'branch_transfer']),
-  amount: z.number(),
-  date: z.object({
-    seconds: z.number(),
-    nanoseconds: z.number(),
-  }).transform(t => Timestamp.fromMillis(t.seconds * 1000)),
-  description: z.string().optional(),
-  category: z.enum(['congregation', 'worldwide_work', 'renovation']).optional(),
-  status: z.enum(['Completado', 'Pendiente de envío', 'Enviado']).optional(),
-});
-
-
 const CongregationSchema = z.object({
   name: z.string().min(1, { message: 'El nombre de la congregación es obligatorio.' }),
 });
-
-
-export async function addIncomeAction(data: z.infer<typeof IncomeSchema>) {
-  const validatedFields = IncomeSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { amount, date, description, category } = validatedFields.data;
-
-    let status: TransactionStatus;
-    if (category === 'congregation') {
-      status = 'Completado';
-    } else {
-      status = 'Pendiente de envío';
-    }
-
-    await addDoc(collection(db, 'transactions'), {
-      type: 'income',
-      amount,
-      date: Timestamp.fromDate(new Date(date)),
-      description: description || '',
-      category,
-      status,
-    });
-    revalidatePath('/finance');
-    return { success: true, message: 'Ingreso añadido correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir el ingreso.' };
-  }
-}
-
-const BatchIncomeSchema = z.object({
-  date: z.string().min(1, { message: 'La fecha es obligatoria.' }),
-  incomes: z.array(z.object({
-    amount: z.number().positive(),
-    category: z.enum(['congregation', 'worldwide_work', 'renovation']),
-    description: z.string().max(100).optional(),
-  })).min(1, { message: 'Debes ingresar al menos una cantidad válida.' }),
-});
-
-export async function addBatchIncomeAction(data: z.infer<typeof BatchIncomeSchema>) {
-  const validatedFields = BatchIncomeSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { date, incomes } = validatedFields.data;
-    const batch = writeBatch(db);
-
-    incomes.forEach((income) => {
-      const docRef = doc(collection(db, 'transactions'));
-      let status: TransactionStatus;
-      if (income.category === 'congregation') {
-        status = 'Completado';
-      } else {
-        status = 'Pendiente de envío';
-      }
-
-      batch.set(docRef, {
-        type: 'income',
-        amount: income.amount,
-        date: Timestamp.fromDate(new Date(date)),
-        description: income.description || '',
-        category: income.category,
-        status,
-      });
-    });
-
-    await batch.commit();
-    revalidatePath('/finance');
-    return { success: true, message: 'Ingresos añadidos correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir los ingresos.' };
-  }
-}
-
-export async function addExpenseAction(data: z.infer<typeof ExpenseSchema>) {
-  const validatedFields = ExpenseSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { amount, date, description } = validatedFields.data;
-    await addDoc(collection(db, 'transactions'), {
-      type: 'expense',
-      amount,
-      date: Timestamp.fromDate(new Date(date)),
-      description: description || '',
-      status: 'Completado',
-    });
-    revalidatePath('/finance');
-    return { success: true, message: 'Gasto añadido correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir el gasto.' };
-  }
-}
-
-export async function addBranchTransferAction(data: z.infer<typeof BranchTransferSchema>) {
-  const validatedFields = BranchTransferSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { amount, date, description, transactionIds } = validatedFields.data;
-
-    const batch = writeBatch(db);
-
-    transactionIds.forEach(id => {
-      const docRef = doc(db, 'transactions', id);
-      batch.update(docRef, { status: 'Enviado' });
-    });
-
-    const newTransferRef = doc(collection(db, 'transactions'));
-    batch.set(newTransferRef, {
-      amount,
-      date: Timestamp.fromDate(new Date(date)),
-      type: 'branch_transfer',
-      description: description || 'Envío a la sucursal',
-      status: 'Completado',
-    });
-
-    await batch.commit();
-
-    revalidatePath('/finance');
-    return { success: true, message: 'Envío a la sucursal añadido correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir el envío a la sucursal.' };
-  }
-}
-
-export async function updateTransactionAction(data: z.infer<typeof UpdateTransactionSchema>) {
-  const validatedFields = UpdateTransactionSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { id, ...rest } = validatedFields.data;
-
-    const transactionRef = doc(db, 'transactions', id);
-
-    const updateData: any = {
-      ...rest,
-      date: Timestamp.fromDate(new Date(rest.date)),
-      description: rest.description || '',
-    };
-
-    if (rest.type === 'income' && rest.category) {
-      if (rest.category === 'congregation') {
-        updateData.status = 'Completado';
-      } else if (updateData.status !== 'Enviado') {
-        updateData.status = 'Pendiente de envío';
-      }
-    }
-
-    Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
-
-    await updateDoc(transactionRef, updateData);
-
-    revalidatePath('/finance');
-    return { success: true, message: 'Transacción actualizada correctamente.' };
-  } catch (e: any) {
-    const message = e instanceof Error ? e.message : 'Ocurrió un error desconocido.';
-    return { success: false, message: `Error al actualizar la transacción: ${message}` };
-  }
-}
-
-export async function deleteTransactionAction(data: z.infer<typeof DeleteTransactionSchema>) {
-  const validatedFields = DeleteTransactionSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.' };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { id } = validatedFields.data;
-    await deleteDoc(doc(db, 'transactions', id));
-    revalidatePath('/finance');
-    return { success: true, message: 'Transacción eliminada correctamente.' };
-  } catch (e: any) {
-    const message = e instanceof Error ? e.message : 'Ocurrió un error desconocido.';
-    return { success: false, message: `Error al eliminar la transacción: ${message}` };
-  }
-}
-
-export async function restoreTransactionsAction(transactions: unknown[]) {
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  const batch = writeBatch(db);
-
-  try {
-    await verifySessionOrThrow();
-    for (const transactionData of transactions) {
-      const { id, ...dataToValidate } = transactionData as any;
-
-      const validatedFields = RestoreTransactionSchema.safeParse(dataToValidate);
-
-      if (!validatedFields.success) {
-        console.error('Invalid transaction in backup file:', validatedFields.error.flatten().fieldErrors);
-        continue;
-      }
-
-      const newDocRef = doc(collection(db, 'transactions'));
-      batch.set(newDocRef, validatedFields.data);
-    }
-
-    await batch.commit();
-    revalidatePath('/finance');
-    return { success: true, message: 'Transacciones restauradas correctamente.' };
-
-  } catch (e: any) {
-    const message = e instanceof Error ? e.message : 'Ocurrió un error desconocido.';
-    return { success: false, message: `Error al restaurar las transacciones: ${message}` };
-  }
-}
 
 
 export async function getCongregationAction() {
@@ -395,8 +92,8 @@ export async function getCongregationAction() {
     } else {
       return { success: true, name: '' };
     }
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al obtener la congregación.', name: '' };
+  } catch (e: unknown) {
+    return { success: false, message: errorMessage(e) || 'Error al obtener la congregación.', name: '' };
   }
 }
 
@@ -419,68 +116,8 @@ export async function updateCongregationAction(data: z.infer<typeof Congregation
 
     revalidatePath('/settings');
     return { success: true, message: 'Nombre de la congregación actualizado correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al actualizar la congregación.' };
-  }
-}
-
-const ResolutionSchema = z.object({
-  description: z.string().min(1, { message: 'La descripción es obligatoria.' }),
-  amount: z.coerce.number().positive({ message: 'La cantidad debe ser un número positivo.' }),
-  startDate: z.string().min(1, { message: 'La fecha es obligatoria.' }),
-});
-
-const DeleteResolutionSchema = z.object({
-  id: z.string().min(1, { message: 'El ID es obligatorio.' }),
-});
-
-export async function addResolutionAction(data: z.infer<typeof ResolutionSchema>) {
-  const validatedFields = ResolutionSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.', errors: validatedFields.error.flatten().fieldErrors };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { amount, startDate, description } = validatedFields.data;
-
-    await addDoc(collection(db, 'resolutions'), {
-      amount,
-      startDate: Timestamp.fromDate(new Date(startDate)),
-      description,
-      isActive: true,
-    });
-    revalidatePath('/finance');
-    return { success: true, message: 'Resolución añadida correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir la resolución.' };
-  }
-}
-
-export async function deleteResolutionAction(data: z.infer<typeof DeleteResolutionSchema>) {
-  const validatedFields = DeleteResolutionSchema.safeParse(data);
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Datos inválidos.' };
-  }
-
-  if (!db) {
-    return { success: false, message: 'La base de datos no está disponible.' };
-  }
-
-  try {
-    await verifySessionOrThrow();
-    const { id } = validatedFields.data;
-    await deleteDoc(doc(db, 'resolutions', id));
-    revalidatePath('/finance');
-    return { success: true, message: 'Resolución eliminada correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al eliminar la resolución.' };
+  } catch (e: unknown) {
+    return { success: false, message: errorMessage(e) || 'Error al actualizar la congregación.' };
   }
 }
 
@@ -527,8 +164,8 @@ export async function addPioneerTalkAction(data: z.infer<typeof PioneerTalkSchem
     });
     revalidatePath('/annual-assignments');
     return { success: true, message: 'Discurso con los precursores añadido.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir el discurso.' };
+  } catch (e: unknown) {
+    return { success: false, message: errorMessage(e) || 'Error al añadir el discurso.' };
   }
 }
 
@@ -545,8 +182,8 @@ export async function addSpecialTalkAction(data: z.infer<typeof SpecialTalkSchem
     });
     revalidatePath('/annual-assignments');
     return { success: true, message: 'Discurso especial añadido.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir el discurso.' };
+  } catch (e: unknown) {
+    return { success: false, message: errorMessage(e) || 'Error al añadir el discurso.' };
   }
 }
 
@@ -563,8 +200,8 @@ export async function addMemorialAction(data: z.infer<typeof MemorialSchema>) {
     });
     revalidatePath('/annual-assignments');
     return { success: true, message: 'Conmemoración añadida.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al añadir la conmemoración.' };
+  } catch (e: unknown) {
+    return { success: false, message: errorMessage(e) || 'Error al añadir la conmemoración.' };
   }
 }
 
@@ -581,8 +218,8 @@ export async function updatePioneerTalkAction(id: string, data: z.infer<typeof P
     });
     revalidatePath('/annual-assignments');
     return { success: true, message: 'Discurso con los precursores actualizado.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al actualizar el discurso.' };
+  } catch (e: unknown) {
+    return { success: false, message: errorMessage(e) || 'Error al actualizar el discurso.' };
   }
 }
 
@@ -599,8 +236,8 @@ export async function updateSpecialTalkAction(id: string, data: z.infer<typeof S
     });
     revalidatePath('/annual-assignments');
     return { success: true, message: 'Discurso especial actualizado.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al actualizar el discurso.' };
+  } catch (e: unknown) {
+    return { success: false, message: errorMessage(e) || 'Error al actualizar el discurso.' };
   }
 }
 
@@ -617,8 +254,8 @@ export async function updateMemorialAction(id: string, data: z.infer<typeof Memo
     });
     revalidatePath('/annual-assignments');
     return { success: true, message: 'Conmemoración actualizada.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al actualizar la conmemoración.' };
+  } catch (e: unknown) {
+    return { success: false, message: errorMessage(e) || 'Error al actualizar la conmemoración.' };
   }
 }
 
@@ -629,8 +266,8 @@ export async function deleteAnnualAssignmentAction(id: string, type: 'pioneer_ta
     await deleteDoc(doc(db, type, id));
     revalidatePath('/annual-assignments');
     return { success: true, message: 'Registro eliminado correctamente.' };
-  } catch (e: any) {
-    return { success: false, message: e.message || 'Error al eliminar el registro.' };
+  } catch (e: unknown) {
+    return { success: false, message: errorMessage(e) || 'Error al eliminar el registro.' };
   }
 }
 

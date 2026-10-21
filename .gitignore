@@ -4,6 +4,15 @@ node_modules
 .atl/
 .codegraph/
 
+# Base de datos local de contabilidad y ficheros generados
+/data/
+
+# Artefactos de build
+tsconfig.tsbuildinfo
+
+# Datos locales de herramientas (Command Code)
+.commandcode/
+
 # Local environment files
 .env*.local
 env.local

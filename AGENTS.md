@@ -20,7 +20,7 @@ Este archivo registra las skills de desarrollo específicas para el proyecto `kh
 
 | Skill | Descripción | Archivo de Especificación |
 | :--- | :--- | :--- |
-| `khapp-finance-domain` | Transacciones, derivación de status desde `category`, branch transfer atómico, resoluciones, restore JSON. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-finance-domain/SKILL.md) |
+| `khapp-finance-domain` | Contabilidad local en SQLite: importación de los informes PDF (S-26 / S-30), conceptos y reglas, cuadre S-30 ↔ S-26, y la regla de que ningún PDF se persiste. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-finance-domain/SKILL.md) |
 | `khapp-annual-assignments` | Tres colecciones hermanas (`pioneer_talks`, `special_talks`, `memorials`), add/update separados, delete discriminado. | [SKILL.md](file:///Users/ramonmenor/trabajo/github/khapp/skills/khapp-annual-assignments/SKILL.md) |
 
 ## Orden de Carga Recomendado
@@ -36,8 +36,8 @@ Cuando el agente trabaja en una tarea, las skills deben cargarse en este orden:
    - Tocando PWA/manifest/next.config.mjs → `khapp-pwa-conventions`
    - Tocando `src/ai/` o invocando un flow → `khapp-genkit-flows`
 
-2. **Después, la de dominio** según la colección afectada:
-   - `transactions` o `resolutions` → `khapp-finance-domain`
+2. **Después, la de dominio** según el área afectada:
+   - `src/lib/finance/`, `src/lib/db/`, las páginas de `/finance` o la importación de PDF → `khapp-finance-domain`
    - `pioneer_talks` / `special_talks` / `memorials` → `khapp-annual-assignments`
 
 3. **Si la tarea cruza varios dominios** (ej. añadir una columna a la tabla de grupos que muestra un campo de publicador), carga las dos skills de dominio afectadas.
@@ -46,3 +46,5 @@ Cuando el agente trabaja en una tarea, las skills deben cargarse en este orden:
 
 - **Core originales** (`khapp-server-actions`, `khapp-firestore-data`, `khapp-ui-components`): engrosadas en 2026-06-24 con anti-patrones, referencias concretas a `actions.ts` y al drift conocido.
 - **Skills nuevas** (8 en total): creadas en 2026-06-24 para cubrir dominios y áreas transversales que no tenían skill.
+- **`khapp-finance-domain` reescrita (v2.0) en 2026-10-20**: el dominio de finanzas pasó de Firestore a
+  SQLite local y a la importación de informes PDF. Ya no describe el modelo de transacciones de Firestore.

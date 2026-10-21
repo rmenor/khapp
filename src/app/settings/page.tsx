@@ -3,14 +3,14 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Download, Upload, Loader2, Save } from 'lucide-react';
 import { AppLogo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
-import { db } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
-import { restoreTransactionsAction, updateCongregationAction, getCongregationAction } from '@/lib/actions';
+import { updateCongregationAction, getCongregationAction } from '@/lib/actions';
+import { exportFinanceAction, restoreFinanceAction } from '@/lib/finance/backup-actions';
 import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
@@ -22,6 +22,7 @@ export default function SettingsPage() {
     const [congregationName, setCongregationName] = useState('');
     const [isSavingCongregation, setIsSavingCongregation] = useState(false);
     const { toast } = useToast();
+    const router = useRouter();
 
     useEffect(() => {
         const fetchCongregationName = async () => {
@@ -44,13 +45,7 @@ export default function SettingsPage() {
     const handleBackup = async () => {
         setIsBackingUp(true);
         try {
-            const transactionsSnap = await getDocs(collection(db, 'transactions'));
-            const transactions = transactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-            const backupData = {
-                version: 2,
-                transactions
-            };
+            const backupData = await exportFinanceAction();
 
             const dataStr = JSON.stringify(backupData, null, 2);
             const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -58,22 +53,22 @@ export default function SettingsPage() {
             const link = document.createElement('a');
             link.href = url;
             const date = new Date().toISOString().split('T')[0];
-            link.download = `finanzas-kh-backup-${date}.json`;
+            link.download = `contabilidad-kh-backup-${date}.json`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
-            
+
             toast({
                 title: 'Éxito',
                 description: 'Copia de seguridad descargada correctamente.',
             });
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast({
                 variant: 'destructive',
                 title: 'Error en la copia de seguridad',
-                description: error.message || 'No se pudo completar la copia de seguridad.',
+                description: (error instanceof Error ? error.message : undefined) ?? 'No se pudo completar la copia de seguridad.',
             });
         } finally {
             setIsBackingUp(false);
@@ -98,55 +93,34 @@ export default function SettingsPage() {
 
         setIsRestoring(true);
 
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const contentStr = event.target?.result as string;
-                const parsedData = JSON.parse(contentStr);
+        try {
+            const contentStr = await backupFile.text();
+            const parsedData = JSON.parse(contentStr);
 
-                let restoreSuccess = false;
-                let message = '';
+            const result = await restoreFinanceAction(parsedData);
 
-                if (Array.isArray(parsedData)) {
-                    // Formato antiguo: solo transacciones
-                    const result = await restoreTransactionsAction(parsedData);
-                    restoreSuccess = result.success;
-                    message = result.message || '';
-                } else if (typeof parsedData === 'object' && parsedData !== null) {
-                    // Nuevo formato: objeto con colecciones
-                    if (Array.isArray(parsedData.transactions) && parsedData.transactions.length > 0) {
-                        const res = await restoreTransactionsAction(parsedData.transactions);
-                        restoreSuccess = res.success;
-                        message = res.message || '';
-                    } else {
-                        restoreSuccess = false;
-                        message = 'No se encontraron transacciones para restaurar.';
-                    }
-                } else {
-                    throw new Error('El archivo de copia de seguridad no tiene un formato válido.');
-                }
-
-                if (restoreSuccess) {
-                    toast({
-                        title: 'Éxito',
-                        description: `${message} La página se recargará.`,
-                    });
-                    setTimeout(() => window.location.assign('/dashboard'), 2500);
-                } else {
-                    throw new Error(message || 'Error desconocido al restaurar.');
-                }
-
-            } catch (error: any) {
-                 toast({
-                    variant: 'destructive',
-                    title: 'Error de Restauración',
-                    description: error.message,
+            if (result.success) {
+                toast({
+                    title: 'Éxito',
+                    description: `${result.message} La página se recargará.`,
                 });
-            } finally {
-                 setIsRestoring(false);
+                setTimeout(() => router.push('/finance'), 2500);
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error de restauración',
+                    description: result.message,
+                });
             }
-        };
-        reader.readAsText(backupFile);
+        } catch (error: unknown) {
+            toast({
+                variant: 'destructive',
+                title: 'Error de Restauración',
+                description: (error instanceof Error ? error.message : undefined) ?? 'No se ha podido restaurar la copia.',
+            });
+        } finally {
+            setIsRestoring(false);
+        }
     };
 
     const handleSaveCongregation = async () => {
@@ -211,8 +185,8 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Copia de Seguridad</CardTitle>
             <CardDescription>
-              Descarga una copia de seguridad de todas tus transacciones en un archivo JSON.
-              Guarda este archivo en un lugar seguro.
+              Descarga una copia de seguridad de la contabilidad (meses, movimientos, conceptos y
+              resoluciones) en un archivo JSON. Guarda este archivo en un lugar seguro.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -226,8 +200,8 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Restaurar Copia de Seguridad</CardTitle>
             <CardDescription>
-              Restaura tus datos desde un archivo de copia de seguridad JSON. Esta acción añadirá
-              las transacciones del archivo a tu base de datos actual.
+              Restaura la contabilidad desde un archivo de copia de seguridad JSON. Esta acción
+              reemplaza los datos de contabilidad actuales por los del archivo.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -243,7 +217,7 @@ export default function SettingsPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción restaurará los datos desde el archivo seleccionado. Esto no borrará los datos existentes, pero podría crear duplicados si las transacciones ya existen. ¿Deseas continuar?
+                            Esta acción reemplazará los datos de contabilidad actuales por los del archivo seleccionado. ¿Deseas continuar?
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

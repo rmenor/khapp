@@ -22,7 +22,7 @@ export async function verifySession(cookieValue?: string): Promise<boolean> {
   if (!cookieValue) return false;
   const parts = cookieValue.split('.');
   if (parts.length !== 2) return false;
-  const [expireTime, signatureHex] = parts;
+  const [expireTime] = parts;
   
   const expireNum = parseInt(expireTime);
   if (isNaN(expireNum) || expireNum < Date.now()) return false;

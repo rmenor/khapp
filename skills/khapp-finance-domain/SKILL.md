@@ -1,241 +1,214 @@
 ---
 name: khapp-finance-domain
 description: >
-  Enforces the financial domain rules of KH App: transaction types and status derivation, branch transfer atomicity, resolutions lifecycle, soft-delete with restore, and the JSON backup/restore transform pattern.
-  Trigger: Modifying the transactions or resolutions collections, the finance page, the branch transfer flow, or the Excel/JSON backup-restore feature in KH App.
+  Enforces the financial domain rules of KH App: the local SQLite accounting
+  database, the PDF import pipeline (S-26 / S-30), the concepts and rules that
+  classify movements, the reconciliation between the summary and the ledger,
+  and the rule that no PDF is ever persisted.
+  Trigger: Modifying the accounting module, the finance pages, the import
+  pipeline, the SQLite schema of the accounting data, or the backup/restore
+  feature in KH App.
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: "2.0"
 ---
 
 ## When to Use
 
-- When adding or modifying any action in [actions.ts](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts) that touches the `transactions` or `resolutions` collections.
-- When changing the rules that map `category` to `status` for income.
-- When touching the branch transfer flow (`addBranchTransferAction`).
-- When working with the backup/restore feature (Excel export, JSON import).
-- When modifying the `/finance` page or the `AddTransactionDialog` / `ManageResolutionsDialog` components.
+- When adding or modifying anything under `src/lib/finance/` (parsers, import
+  pipeline, concept resolution, preview store).
+- When adding or modifying anything under `src/lib/db/` (schema, queries,
+  reconciliation).
+- When changing the `/finance` pages or the components in
+  `src/components/finance/`.
+- When modifying the accounting backup/restore in `src/app/settings/page.tsx`.
+- When touching `scripts/finance-*.ts` or `scripts/db-*.ts`.
+
+## The domain moved from Firestore to local SQLite
+
+The accounting domain no longer lives in Firestore. `transactions` and
+`resolutions` are now SQLite tables in `data/contabilidad.db`. The Firestore
+collections of the same name are **not used any more**: the code must not read
+or write them.
+
+Other domains (requests, publishers, groups, privileges, annual assignments)
+stay in Firestore. Do not "migrate" them as a side effect.
 
 ## Critical Patterns
 
-### 1. Transaction Type Matrix
+### 1. The data comes from the PDF, nothing is invented
 
-There are exactly **three** transaction types and each one has a fixed set of fields and a default status:
+Every figure shown by the app comes from the text of an imported PDF.
 
-| `type` | `category` allowed | Default `status` | Notes |
-|--------|--------------------|------------------|-------|
-| `income` | `congregation`, `worldwide_work`, `renovation` | Derived (see below) | Only income has `category` |
-| `expense` | _(none)_ | `'Completado'` | Always immediate |
-| `branch_transfer` | _(none)_ | `'Completado'` | Created by the branch transfer flow |
+- A value that cannot be parsed as an amount is **discarded with a warning**,
+  never replaced by a guess.
+- A document with no text layer is reported as *"parece un escaneo, no puedo
+  leerlo"* and **no rows are stored**.
+- A document that is neither S-26 nor S-30 is **ignored without error**.
+- A month whose totals do not reconcile is shown **in red with the difference**,
+  not hidden and not auto-corrected.
 
-Reference: [actions.ts:74-120](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts) (schemas) and [types.ts:5-19](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/types.ts) (types).
+**Anti-pattern:** never "fix" a discrepancy by adjusting a figure, and never
+fall back to a default amount.
 
-### 2. Status Derivation for Income
+### 2. The PDF is never persisted
 
-This rule is **non-negotiable** and lives in [actions.ts:186-191](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts):
+The uploaded files are processed in memory and discarded. The `imports` table
+stores only: `source_hash`, `filename`, `imported_at`, `rows`, `warnings`,
+`doc_type` and `status`.
 
-```typescript
-if (category === 'congregation') {
-  status = 'Completado';
-} else {
-  status = 'Pendiente de envío';
-}
-```
+- Do not write the PDF to disk, to `tmp`, to the vault or to any external
+  service.
+- The batch folder import reads the folder **read-only**: no copying, no
+  moving, no deleting.
+- The preview lives in memory (`src/lib/finance/preview-store.ts`) with a
+  30 minute TTL.
 
-Meaning:
-- `congregation` income → stays in the congregation, status is final.
-- `worldwide_work` and `renovation` income → must be sent to the branch, status starts as pending.
+### 3. The month comes from the header, not from the filename
 
-The same logic is repeated in [actions.ts:235-240](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts) for `addBatchIncomeAction` and again in [actions.ts:351-357](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts) for `updateTransactionAction` — **when in doubt, mirror these three sites**, do not invent a fourth path.
+The header of both documents (`"septiembre de 2026"`) is the source of truth.
+The filename is only used to **warn** about a mismatch. Document type
+detection is by **content** too: `HOJA DE CUENTAS (S-26)` and `INFORME MENSUAL
+DE LAS CUENTAS DE LA CONGREGACIÓN (S-30)`. Filenames vary wildly
+(`25-05-Mayo`, `Estado de cuentas - 08-2026.pdf` vs `Estado de cuentas -
+2026-09.pdf`) and must never drive parsing.
 
-**Anti-pattern**: never let a client component set the `status` field directly. Status is always derived server-side from `type` + `category`.
+### 4. Amounts are never summed blindly
 
-### 3. Amount is Always Positive
+A row can carry two amounts in different accounts (a deposit from the cash box
+to the bank). It is stored as **one movement with two entries**:
 
-`amount` is always a **positive number**. The transaction's `type` (`income` / `expense`) determines direction in reports — do not store negative numbers. This is enforced in every Zod schema via `z.coerce.number().positive(...)`.
+- `transactions` keeps the row totals (`inflow`, `outflow`),
+- `transaction_entries` keeps each amount with its `account` and `direction`,
+- `account_from` / `account_to` record the accounts involved.
 
-### 4. Description Length Cap
+Summing the two amounts of a deposit as if both were income gives 440,00
+instead of 0,00 and breaks the month.
 
-`description` is capped at 100 characters in every schema. Don't bypass this in the update path either.
+**Anti-pattern:** never derive the income of a row from the sum of its amounts.
 
-### 5. Branch Transfer Atomicity
+### 5. Concept kinds decide what counts as income or expense
 
-The `addBranchTransferAction` ([actions.ts:288-326](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts)) is a **two-part write** that must be atomic:
+A concept has a `kind`:
 
-1. `writeBatch.update()` every selected income transaction's `status` to `'Enviado'`.
-2. `writeBatch.set()` a new `branch_transfer` document with the same `date` and `description: 'Envío a la sucursal'` (or custom).
+| `kind` | Meaning |
+|--------|---------|
+| `income` | Counts as income |
+| `expense` | Counts as expense |
+| `transfer` | Internal transfer between accounts: it moves funds but it is **neither** income nor expense |
 
-Both go in the **same `writeBatch`** and a single `batch.commit()` finalizes them. If you split this into two separate writes, a crash between them leaves the data inconsistent.
+A deposit from the cash box to the bank is a `transfer`. Counting it as an
+expense breaks the reconciliation.
 
-**Anti-pattern**: do NOT call `revalidatePath` before `batch.commit()`. The revalidation must happen after the commit so the UI never sees a half-applied state.
+Concept resolution order: **`ct_code` → `concept_rules` (by priority) → no
+concept**. A movement that matches nothing stays unclassified and is visible
+as such. Do not invent a fallback concept.
 
-### 6. Branch Transfer Validation
+### 6. The reconciliation has a 0,01 € tolerance
 
-The `BranchTransferSchema` ([actions.ts:89-94](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts)) requires at least one `transactionId`. The UI must ensure all selected transactions are currently `'Pendiente de envío'` — the server trusts the input but the client filters first.
+`src/lib/db/reconciliation.ts` compares, per month:
 
-### 7. Resolutions Are Separate from Transactions
+1. `months.income_total` (S-30) against the sum of the inflows of the
+   movements whose concept is `income`.
+2. `months.expense_total` (S-30) against the sum of the outflows of the
+   movements whose concept is `expense`.
+3. `opening_balance + (all inflows − all outflows)` against `closing_balance`.
 
-Resolutions (`resolutions` collection) are **outlays approved by the congregation** with their own lifecycle:
+The balance check uses **all** movements, including transfers, because a
+transfer does move the congregation's funds. The income and expense checks use
+only the matching concept kinds.
 
-```typescript
-{
-  id: string;
-  description: string;
-  amount: number;
-  startDate: Timestamp;   // ← Date when the resolution takes effect
-  isActive: boolean;      // ← Whether the resolution is still in force
-}
-```
+Any difference greater than 0,01 € must be visible in the UI.
 
-They are NOT a transaction type. They are referenced by the `ManageResolutionsDialog` ([actions.ts:640-715](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts)). When deactivating a resolution, you set `isActive: false` — do not delete it. Historical resolutions are kept for auditing.
+### 7. Money is never stored negative
 
-### 8. Soft Delete + Restore via JSON
+`inflow` and `outflow` are always positive; the direction is expressed by the
+column and by `transaction_entries.direction`. This is the opposite of the old
+Firestore model, where the `type` (`income` / `expense`) carried the direction.
 
-There is **no real soft delete**. `deleteTransactionAction` calls `deleteDoc` outright ([actions.ts:386](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts)). Instead, the app offers an **export-to-JSON / restore-from-JSON** flow:
+### 8. Resolutions are deactivated, never deleted
 
-- **Export** is not yet a server action; the UI must serialize the visible transactions to a JSON file with the same shape as `RestoreTransactionSchema` ([actions.ts:110-120](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts)).
-- **Restore** is `restoreTransactionsAction` ([actions.ts:395-426](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts)).
+`resolutions` is a SQLite table with an `is_active` flag. `deleteResolutionAction`
+sets `is_active = 0`. Historical resolutions are kept for auditing.
 
-The restore schema has a **non-obvious transform** ([actions.ts:113-116](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts)):
+### 9. Filters live in the URL
 
-```typescript
-date: z.object({
-  seconds: z.number(),
-  nanoseconds: z.number(),
-}).transform(t => Timestamp.fromMillis(t.seconds * 1000))
-```
+Every filter of the movements view is a query parameter (`year`, `mes`,
+`trimestre`, `concepto`, `ct`, `cuenta`, `q`, `min`, `max`). The server reads
+them, applies them in SQL and recalculates the totals. A new filter must
+follow the same pattern so the view stays shareable.
 
-This exists because the JSON export of a Firestore `Timestamp` serializes to `{seconds, nanoseconds}` (not a full ISO string). The schema accepts that shape and re-hydrates a `Timestamp` from it. **Do not "simplify" this transform** — it is the only thing keeping the restore flow working. If you change the export format, change this transform in lockstep.
+### 10. The CSV export reuses the same filters
 
-### 9. Restore Creates NEW Documents
-
-`restoreTransactionsAction` uses `doc(collection(db, 'transactions'))` (a fresh ref) — it does NOT restore the original IDs. After restore, the docs are duplicates with new IDs, not the same docs back. Document this in any user-facing copy: "Restaurar crea copias, no restaura los IDs originales."
-
-### 10. Default `status` on Update
-
-In `updateTransactionAction` ([actions.ts:351-357](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts)), if the user changes the `category` to `congregation` on an income, status flips to `'Completado'`. If they switch away from `congregation` and the current status is NOT `'Enviado'`, status flips to `'Pendiente de envío'`. The `updateData.status !== 'Enviado'` guard prevents demoting an already-sent transaction.
+`/api/finance/movimientos.csv` parses the same query parameters as the page.
+The exported file must contain exactly the rows of the filtered view.
 
 ## Code Examples
 
-### Adding a Single Income (Auto-Derived Status)
+### Importing a movement with two amounts (a transfer)
 
 ```typescript
-const { amount, date, description, category } = validatedFields.data;
+// Una fila con salida de caja y entrada de banco: 220,00 en cada cuenta.
+entries.push(
+  { account: 'caja', direction: 'salida', amount: 220 },
+  { account: 'banco', direction: 'entrada', amount: 220 },
+);
 
-let status: TransactionStatus;
-if (category === 'congregation') {
-  status = 'Completado';
-} else {
-  status = 'Pendiente de envío';
-}
-
-await addDoc(collection(db, 'transactions'), {
-  type: 'income',
-  amount,
-  date: Timestamp.fromDate(new Date(date)),
-  description: description || '',
-  category,
-  status,
-});
+const isTransfer = entradaCuentas.size > 0 && salidaCuentas.size > 0 && cuentasDistintas;
 ```
 
-Reference: [actions.ts:184-200](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts).
-
-### Branch Transfer (Batch Atomicity)
+### Assigning a concept
 
 ```typescript
-const batch = writeBatch(db);
+export function resolveConcept(ctCode: string | null, description: string): number | null {
+  if (ctCode) {
+    const byCode = db.prepare('SELECT id FROM concepts WHERE ct_code = ?').get(ctCode);
+    if (byCode) return byCode.id;
+  }
 
-transactionIds.forEach(id => {
-  const docRef = doc(db, 'transactions', id);
-  batch.update(docRef, { status: 'Enviado' });
-});
+  for (const rule of reglas) {
+    if (description.toLowerCase().includes(rule.pattern.toLowerCase())) return rule.id;
+  }
 
-const newTransferRef = doc(collection(db, 'transactions'));
-batch.set(newTransferRef, {
-  amount,
-  date: Timestamp.fromDate(new Date(date)),
-  type: 'branch_transfer',
-  description: description || 'Envío a la sucursal',
-  status: 'Completado',
-});
-
-await batch.commit();   // ← both writes atomic
-revalidatePath('/finance');
-```
-
-Reference: [actions.ts:301-322](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts).
-
-### Restore from JSON (Transform-Aware)
-
-```typescript
-const RestoreTransactionSchema = z.object({
-  type: z.enum(['income', 'expense', 'branch_transfer']),
-  amount: z.number(),
-  date: z.object({
-    seconds: z.number(),
-    nanoseconds: z.number(),
-  }).transform(t => Timestamp.fromMillis(t.seconds * 1000)),
-  description: z.string().optional(),
-  category: z.enum(['congregation', 'worldwide_work', 'renovation']).optional(),
-  status: z.enum(['Completado', 'Pendiente de envío', 'Enviado']).optional(),
-});
-
-const batch = writeBatch(db);
-for (const transactionData of transactions) {
-  const { id, ...dataToValidate } = transactionData as any;
-  const validated = RestoreTransactionSchema.safeParse(dataToValidate);
-  if (!validated.success) continue;
-  const newDocRef = doc(collection(db, 'transactions'));   // ← new ID
-  batch.set(newDocRef, validated.data);
-}
-await batch.commit();
-```
-
-Reference: [actions.ts:110-120](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts) and [actions.ts:395-426](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts).
-
-### Adding a Resolution
-
-```typescript
-export async function addResolutionAction(data: z.infer<typeof ResolutionSchema>) {
-  // ... validation + db check
-  await addDoc(collection(db, 'resolutions'), {
-    description,
-    amount,
-    startDate: Timestamp.fromDate(new Date(startDate)),
-    isActive: true,
-  });
-  revalidatePath('/finance');
+  return null;  // Sin clasificar: no se inventa nada.
 }
 ```
 
-Reference: [actions.ts:640-665](file:///Users/ramonmenor/trabajo/github/khapp/src/lib/actions.ts).
+### Writing a month atomically
+
+```typescript
+db.exec('BEGIN');
+try {
+  // ... inserciones ...
+  db.exec('COMMIT');
+} catch (error) {
+  db.exec('ROLLBACK');
+  return { success: false, message: '...' };
+}
+```
 
 ## Commands
 
 ```bash
-# Verify all finance schemas still typecheck
-npm run typecheck
-
-# Lint
-npm run lint
-
-# Manual smoke test
-# 1. Add income with category=congregation → status should be "Completado"
-# 2. Add income with category=worldwide_work → status should be "Pendiente de envío"
-# 3. Select 2+ pending incomes, click "Enviar a sucursal" → both flip to "Enviado",
-#    a new branch_transfer doc is created
-# 4. Export to JSON, delete some transactions, restore from JSON → new docs appear
-npm run dev
+npm run typecheck          # TypeScript
+npm run lint               # ESLint
+npm test                   # vitest
+npm run db:init            # Crea data/contabilidad.db vacía
+npm run db:demo            # Volcado de ejemplo (3 meses sintéticos)
+npm run finance:inspect -- <pdf>   # Diagnóstico de un PDF
+npm run finance:report     # Meses importados y ficheros fallidos
 ```
 
 ## Anti-Patterns (Read Before Modifying)
 
-- ❌ **Do not** add a `category` to an `expense` or `branch_transfer`. Only `income` carries a category.
-- ❌ **Do not** let the UI send a hardcoded `status` for income. Always derive it from `category`.
-- ❌ **Do not** store `amount` as negative. Use `type` to express direction.
-- ❌ **Do not** split the branch transfer into two non-atomic writes.
-- ❌ **Do not** delete a resolution when it stops being used — set `isActive: false`.
-- ❌ **Do not** change the `{seconds, nanoseconds}` restore schema without updating the export side in lockstep.
-- ❌ **Do not** add new transaction types without updating both the Zod schema AND the `updateTransactionAction` status logic.
+- ❌ **Do not** write, copy or persist the uploaded PDF anywhere.
+- ❌ **Do not** invent figures, concepts or months to make a report balance.
+- ❌ **Do not** parse by filename: the type and the month come from the content.
+- ❌ **Do not** sum the two amounts of a row as if they were both income.
+- ❌ **Do not** count a `transfer` concept as income or expense.
+- ❌ **Do not** store negative amounts.
+- ❌ **Do not** delete a resolution: deactivate it.
+- ❌ **Do not** add a filter that does not travel in the URL.
+- ❌ **Do not** touch the Firestore `transactions` or `resolutions` collections.
+- ❌ **Do not** read Firestore from the finance pages: the data is in SQLite.

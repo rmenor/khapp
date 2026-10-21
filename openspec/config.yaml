@@ -1,20 +1,20 @@
 schema: spec-driven
 
 context: |
-  Tech stack: Next.js 16.1.1, React 18, Firebase 10.12, Tailwind CSS
-  Architecture: App Router (with (app) layout), Server Actions, Firestore Database
-  Testing: No test runner detected
-  Style: next lint, tsc --noEmit
+  Tech stack: Next.js 16.1.1, React 18, Firebase 10.12 (resto de dominios),
+  SQLite local via node:sqlite (dominio de contabilidad), Tailwind CSS
+  Architecture: App Router (with (app) layout), Server Actions, Route Handlers
+  Testing: vitest
+  Style: eslint ., tsc --noEmit
 
 rules:
   proposal:
-    - Define clear schema requirements for Publishers and Groups
+    - Define clear schema requirements for the entities of the change
   specs:
-    - Specify user scenarios for Publisher management (CRUD)
-    - Specify user scenarios for Group management (CRUD, member assignment)
+    - Specify user scenarios in Given/When/Then, in Spanish
   design:
-    - Design Firestore data structures (publishers, groups collections)
-    - Document Next.js Server Actions and UI layout
+    - Design the data structures (SQLite tables or Firestore collections)
+    - Document Server Actions, route handlers and UI layout
   tasks:
     - Break down tasks into model additions, server actions, navigation, and frontend page layouts
   apply:
@@ -22,4 +22,4 @@ rules:
     - strict_tdd: false
   verify:
     - Manual verification via browser page testing
-    - Run linter and type-checker
+    - Run linter, type-checker and test suite
